@@ -13,7 +13,7 @@
 | Step 3 — Merge AI | **DONE** | 121/121 tests pass (all Claude API mocked). Tables: suggestions, suggestion_changes, generation_jobs. Inter-service to core-api + telemetry OK. Redis OK. Fixes: alembic sys.path, respx dep, test deps in Dockerfile. |
 | Step 4 — Merge Frontend + Gateway | **DONE** | All 8 containers healthy. Gateway proxying correctly (401s not 502s). Frontend serving on :5173. Fixes: implemented gateway proxy, npm --legacy-peer-deps for vite-plugin-pwa compat. |
 | Step 5 — End-to-end user flow | **DONE** | All 16 steps pass. Register→Profile→Bike CRUD→Maintenance→Tire Pressure→Mods→Track→Event→Session→Snapshot→Change→AI Suggestion (job pending, no API key)→Progress→Upcoming. Fixes: gateway sub→user_id claim mapping, tire_pressure needs recorded_at field. |
-| Step 6 — Final tests + tag | Not started | |
+| Step 6 — Final tests + tag | **DONE** | All 326 tests pass (110+95+121). All 8 containers healthy. Tagged v1.0.0-alpha. |
 
 -----
 
