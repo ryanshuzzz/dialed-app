@@ -9,6 +9,7 @@ asynchronously via Redis task queue and notifies clients via SSE.
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from sqlalchemy import text
 
 from db import _db_engine, _ts_engine
 from dialed_shared import (
@@ -22,11 +23,62 @@ from routers import ingest, telemetry
 
 logger = setup_logger("telemetry-ingestion")
 
+_CREATE_TELEMETRY_POINTS_SQL = """
+CREATE TABLE IF NOT EXISTS telemetry.telemetry_points (
+    time            TIMESTAMPTZ     NOT NULL,
+    session_id      UUID            NOT NULL,
+    gps_speed       DOUBLE PRECISION,
+    throttle_pos    DOUBLE PRECISION,
+    rpm             DOUBLE PRECISION,
+    gear            SMALLINT,
+    lean_angle      DOUBLE PRECISION,
+    front_brake_psi DOUBLE PRECISION,
+    rear_brake_psi  DOUBLE PRECISION,
+    fork_position   DOUBLE PRECISION,
+    shock_position  DOUBLE PRECISION,
+    coolant_temp    DOUBLE PRECISION,
+    oil_temp        DOUBLE PRECISION,
+    lat             DOUBLE PRECISION,
+    lon             DOUBLE PRECISION,
+    extra_channels  JSONB           NOT NULL DEFAULT '{}'::jsonb,
+    PRIMARY KEY (time, session_id)
+);
+"""
+
+_CREATE_HYPERTABLE_SQL = """
+SELECT create_hypertable(
+    'telemetry.telemetry_points',
+    'time',
+    if_not_exists => TRUE
+);
+"""
+
+_CREATE_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS ix_telemetry_points_session_time
+    ON telemetry.telemetry_points (session_id, time);
+"""
+
+
+async def ensure_timescale_schema() -> None:
+    """Create the telemetry_points hypertable on TimescaleDB if it does not exist.
+
+    This runs at startup against TIMESCALE_URL.  Regular Postgres migrations
+    (Alembic / DATABASE_URL) do not touch this table because create_hypertable()
+    is a TimescaleDB-only function.
+    """
+    async with _ts_engine.begin() as conn:
+        await conn.execute(text("CREATE SCHEMA IF NOT EXISTS telemetry"))
+        await conn.execute(text(_CREATE_TELEMETRY_POINTS_SQL))
+        await conn.execute(text(_CREATE_HYPERTABLE_SQL))
+        await conn.execute(text(_CREATE_INDEX_SQL))
+    logger.info("TimescaleDB schema verified: telemetry.telemetry_points ready")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage database engine lifecycle."""
     logger.info("Telemetry/Ingestion service starting on port 8002")
+    await ensure_timescale_schema()
     yield
     # Dispose both async engines on shutdown.
     await _db_engine.dispose()

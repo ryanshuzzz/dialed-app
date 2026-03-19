@@ -9,7 +9,7 @@
 |------|--------|-------|
 | Step 0 — Pre-merge infra validation | **DONE** | Postgres, TimescaleDB, Redis healthy. Schemas created. All 4 branches present. |
 | Step 1 — Merge Core API | **DONE** | 110/110 tests pass. 16 tables created. /health 200. Fixes: email-validator dep, alembic sys.path, test deps in Dockerfile. |
-| Step 2 — Merge Telemetry/Ingestion | Not started | |
+| Step 2 — Merge Telemetry/Ingestion | **DONE** | 95/95 tests pass. Tables: ingestion_jobs, lap_segments (Postgres) + telemetry_points hypertable (TimescaleDB). Inter-service to core-api OK. Fixes: python-multipart dep, dual-DB migration split, enum creation fix. |
 | Step 3 — Merge AI | Not started | |
 | Step 4 — Merge Frontend + Gateway | Not started | |
 | Step 5 — End-to-end user flow | Not started | |
