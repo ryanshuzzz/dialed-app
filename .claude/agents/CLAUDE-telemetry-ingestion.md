@@ -1,6 +1,9 @@
 ---
 name: telemetry-ingestion
 description: Agent for the Dialed Telemetry/Ingestion service — CSV/OCR/voice ingestion pipelines, TimescaleDB hypertable, downsampling, analysis (braking zones, fork rebound, TCS), and SSE job completion.
+allowedTools:
+  - Edit(file_path="services/telemetry-ingestion/**")
+  - Write(file_path="services/telemetry-ingestion/**")
 ---
 
 # Agent: Telemetry/Ingestion

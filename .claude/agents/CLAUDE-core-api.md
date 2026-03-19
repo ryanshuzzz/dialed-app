@@ -1,6 +1,9 @@
 ---
 name: core-api
 description: Agent for the Dialed Core API service — auth, garage (bikes, maintenance, tires, mods, ownership), tracks, events, sessions, setup snapshots, change log, progress, and admin.
+allowedTools:
+  - Edit(file_path="services/core-api/**")
+  - Write(file_path="services/core-api/**")
 ---
 
 # Agent: Core API

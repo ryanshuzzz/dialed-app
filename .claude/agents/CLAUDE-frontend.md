@@ -1,6 +1,9 @@
 ---
 name: frontend
 description: Agent for the Dialed frontend — React 19 + TypeScript PWA, Garage/session/progress screens, SSE integration, offline queue, and MSW mocks.
+allowedTools:
+  - Edit(file_path="services/frontend/**")
+  - Write(file_path="services/frontend/**")
 ---
 
 # Agent: Frontend

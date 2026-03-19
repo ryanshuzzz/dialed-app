@@ -1,6 +1,9 @@
 ---
 name: ai-service
 description: Agent for the Dialed AI service — suggestion generation, rules engine, SSE streaming, change tracking, and Claude API integration.
+allowedTools:
+  - Edit(file_path="services/ai/**")
+  - Write(file_path="services/ai/**")
 ---
 
 # Agent: AI
