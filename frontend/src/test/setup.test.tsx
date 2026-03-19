@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import Garage from '@/screens/Garage';
@@ -20,32 +20,72 @@ function renderWithProviders(ui: React.ReactElement, { route = '/' } = {}) {
   );
 }
 
+let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+beforeEach(() => {
+  fetchSpy = vi.spyOn(globalThis, 'fetch');
+});
+
+afterEach(() => {
+  fetchSpy.mockRestore();
+});
+
 describe('App setup', () => {
-  it('renders the Garage screen without crashing', () => {
+  it('renders the Garage screen without crashing', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
     renderWithProviders(
       <Routes>
         <Route path="/" element={<Garage />} />
       </Routes>,
     );
-    expect(screen.getByText('Garage')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByText('Garage')).toBeInTheDocument();
+    });
   });
 
-  it('renders placeholder text on the Garage screen', () => {
+  it('shows empty state when there are no bikes', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
     renderWithProviders(
       <Routes>
         <Route path="/" element={<Garage />} />
       </Routes>,
     );
-    expect(screen.getByText('Your bikes will appear here.')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByText('No bikes yet')).toBeInTheDocument();
+    });
   });
 
-  it('router mounts with multiple routes', () => {
+  it('router mounts with multiple routes', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    );
+
     renderWithProviders(
       <Routes>
         <Route path="/" element={<Garage />} />
         <Route path="/settings" element={<div>Settings Page</div>} />
       </Routes>,
     );
-    expect(screen.getByText('Garage')).toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(screen.getByText('Garage')).toBeInTheDocument();
+    });
   });
 });
