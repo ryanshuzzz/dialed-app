@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useBike, useUpdateBike } from '@/hooks/useBikes';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { SuspensionSpecCard } from '@/components/garage/SuspensionSpecCard';
+import MaintenanceLogScreen from '@/screens/MaintenanceLog';
 import type { UpdateBikeRequest, SuspensionSpec, SuspensionEndSettings } from '@/api/types';
 
 type TabId = 'overview' | 'maintenance' | 'tires' | 'mods' | 'ownership' | 'sessions';
@@ -431,7 +432,7 @@ export default function BikeDetail() {
 
       {activeTab === 'maintenance' && (
         <div data-testid="maintenance-tab">
-          <p className="text-gray-500 text-sm">Maintenance log coming soon.</p>
+          {id && <MaintenanceLogScreen bikeId={id} />}
         </div>
       )}
 

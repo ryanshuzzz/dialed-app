@@ -1,5 +1,6 @@
 import type { RequestHandler } from 'msw';
 import { bikeHandlers } from './bikes';
+import { maintenanceHandlers } from './maintenance';
 
 /**
  * Aggregate all MSW handlers here.
@@ -7,7 +8,7 @@ import { bikeHandlers } from './bikes';
  */
 export const handlers: RequestHandler[] = [
   ...bikeHandlers,
-  // ...maintenanceHandlers,
+  ...maintenanceHandlers,
   // ...tirePressureHandlers,
   // ...modificationHandlers,
   // ...ownershipHandlers,
