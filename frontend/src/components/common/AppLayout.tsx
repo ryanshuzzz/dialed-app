@@ -1,5 +1,6 @@
-import { Outlet, Link, useLocation } from 'react-router-dom';
+import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useUiStore, type NavItem } from '@/stores/uiStore';
+import { useAuthStore } from '@/stores/authStore';
 
 interface NavEntry {
   item: NavItem;
@@ -22,6 +23,13 @@ export function AppLayout() {
   const sidebarOpen = useUiStore((s) => s.sidebarOpen);
   const toggleSidebar = useUiStore((s) => s.toggleSidebar);
   const location = useLocation();
+  const navigate = useNavigate();
+  const logout = useAuthStore((s) => s.logout);
+
+  function handleLogout() {
+    logout();
+    navigate('/login', { replace: true });
+  }
 
   const visibleEntries = NAV_ENTRIES.filter((e) => isNavVisible(e.item));
 
@@ -56,7 +64,7 @@ export function AppLayout() {
         <aside
           className={`
             fixed inset-y-0 left-0 z-30 w-56 bg-white border-r border-gray-200
-            transform transition-transform duration-200 ease-in-out
+            transform transition-transform duration-200 ease-in-out relative
             md:relative md:translate-x-0
             ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           `}
@@ -89,6 +97,17 @@ export function AppLayout() {
               );
             })}
           </nav>
+
+          {/* Logout — pinned to bottom of sidebar */}
+          <div className="absolute bottom-0 left-0 right-0 px-3 py-4 border-t border-gray-200">
+            <button
+              onClick={handleLogout}
+              className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+              data-testid="sidebar-logout-btn"
+            >
+              Sign Out
+            </button>
+          </div>
         </aside>
 
         {/* Overlay for mobile sidebar */}

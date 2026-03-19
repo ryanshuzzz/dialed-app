@@ -18,7 +18,8 @@ COPY shared/ /build/shared/
 RUN pip install --no-cache-dir /build/shared/
 
 COPY services/core-api/requirements.txt /build/requirements.txt
-RUN pip install --no-cache-dir -r /build/requirements.txt
+COPY services/core-api/requirements-test.txt /build/requirements-test.txt
+RUN pip install --no-cache-dir -r /build/requirements-test.txt
 
 COPY services/core-api/ /build/service/
 

@@ -8,4 +8,5 @@ redis>=5.0.0
 httpx>=0.27.0
 python-jose[cryptography]>=3.3.0
 sse-starlette>=2.0.0
--e ../../shared
+python-multipart>=0.0.9
+# shared package installed separately in Dockerfile

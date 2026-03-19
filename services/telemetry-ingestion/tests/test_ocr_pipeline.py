@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -33,7 +33,7 @@ class TestDetectMediaType:
             _detect_media_type(unsupported_image_path)
 
     def test_unknown_extension(self, tmp_path):
-        path = tmp_path / "photo.xyz"
+        path = tmp_path / "photo.qzx"
         path.write_bytes(b"\x00" * 10)
         with pytest.raises(ValueError, match="Cannot determine"):
             _detect_media_type(str(path))
@@ -130,9 +130,9 @@ class TestParseResponse:
 class TestExtractSetupSheet:
     @pytest.mark.asyncio
     async def test_successful_extraction(self, test_image_path, mock_anthropic_response):
-        mock_resp = AsyncMock()
+        mock_resp = MagicMock()
         mock_resp.json.return_value = mock_anthropic_response
-        mock_resp.raise_for_status = lambda: None
+        mock_resp.raise_for_status = MagicMock()
 
         with patch("pipelines.ocr_pipeline.httpx.AsyncClient") as mock_client_cls:
             mock_client = AsyncMock()
@@ -155,9 +155,9 @@ class TestExtractSetupSheet:
 
     @pytest.mark.asyncio
     async def test_empty_api_response(self, test_image_path):
-        mock_resp = AsyncMock()
+        mock_resp = MagicMock()
         mock_resp.json.return_value = {"content": [{"type": "text", "text": ""}]}
-        mock_resp.raise_for_status = lambda: None
+        mock_resp.raise_for_status = MagicMock()
 
         with patch("pipelines.ocr_pipeline.httpx.AsyncClient") as mock_client_cls:
             mock_client = AsyncMock()
@@ -170,9 +170,9 @@ class TestExtractSetupSheet:
 
     @pytest.mark.asyncio
     async def test_api_sends_correct_headers(self, test_image_path, mock_anthropic_response):
-        mock_resp = AsyncMock()
+        mock_resp = MagicMock()
         mock_resp.json.return_value = mock_anthropic_response
-        mock_resp.raise_for_status = lambda: None
+        mock_resp.raise_for_status = MagicMock()
 
         with patch("pipelines.ocr_pipeline.httpx.AsyncClient") as mock_client_cls:
             mock_client = AsyncMock()
