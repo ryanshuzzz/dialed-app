@@ -4,6 +4,8 @@ import { maintenanceHandlers } from './maintenance';
 import { tirePressureHandlers } from './tirePressure';
 import { modificationHandlers } from './modifications';
 import { ownershipHandlers } from './ownership';
+import { trackHandlers } from './tracks';
+import { eventHandlers } from './events';
 
 /**
  * Aggregate all MSW handlers here.
@@ -15,8 +17,8 @@ export const handlers: RequestHandler[] = [
   ...tirePressureHandlers,
   ...modificationHandlers,
   ...ownershipHandlers,
-  // ...trackHandlers,
-  // ...eventHandlers,
+  ...trackHandlers,
+  ...eventHandlers,
   // ...sessionHandlers,
   // ...ingestionHandlers,
   // ...aiHandlers,
