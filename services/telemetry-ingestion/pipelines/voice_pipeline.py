@@ -96,7 +96,7 @@ _CHANGE_PATTERN = re.compile(
 # Regex for absolute setting mentions: "<param> to/at/is N"
 _ABSOLUTE_PATTERN = re.compile(
     r"(?P<param>(?:front|rear|fork|shock)\s+(?:compression|comp|rebound|preload|spring(?:\s+rate)?|oil(?:\s+level)?|ride\s+height))"
-    r"\s+(?:to|at|is|was|set\s+(?:to|at))\s+"
+    r"\s+(?:to|at|is\s+at|is|was|set\s+(?:to|at))\s+"
     r"(?P<value>\d+(?:\.\d+)?)",
     re.IGNORECASE,
 )

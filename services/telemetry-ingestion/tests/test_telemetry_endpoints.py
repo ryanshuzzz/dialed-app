@@ -14,34 +14,22 @@ from tests.conftest import BASE_TIME, MockAsyncSession, MockLapSegment, MockResu
 
 # ── App setup with dependency overrides ──────────────────────────────────────
 
-_app = FastAPI()
-
-# We need to import and mount the router, then override dependencies.
-# Patch auth before importing router.
 _mock_user = {"user_id": str(uuid.uuid4())}
-
-
-def _override_get_current_user():
-    return _mock_user
 
 
 def _make_app():
     """Create a test app with the telemetry router mounted."""
-    with (
-        patch("dialed_shared.auth.get_current_user", return_value=_mock_user),
-        patch("routers.telemetry.get_current_user", return_value=_mock_user),
-    ):
-        from routers.telemetry import router
+    from routers.telemetry import router
+    from dialed_shared.auth import get_current_user
+    from dialed_shared.errors import install_exception_handlers
 
-        app = FastAPI()
-        app.include_router(router)
+    app = FastAPI()
+    install_exception_handlers(app)
+    app.include_router(router)
 
-        from db import get_db_session, get_timescale_session
-        from dialed_shared.auth import get_current_user
+    app.dependency_overrides[get_current_user] = lambda: _mock_user
 
-        app.dependency_overrides[get_current_user] = lambda: _mock_user
-
-        return app
+    return app
 
 
 # ═══════════════════════ POST /telemetry/upload ══════════════════════════════
@@ -194,8 +182,9 @@ async def test_get_lap_data_not_found():
     mock_db.set_results([MockResult(scalar=None)])
 
     app = _make_app()
-    from db import get_db_session
+    from db import get_db_session, get_timescale_session
     app.dependency_overrides[get_db_session] = lambda: mock_db
+    app.dependency_overrides[get_timescale_session] = lambda: MockAsyncSession()
 
     client = TestClient(app)
     resp = client.get(f"/telemetry/{SESSION_ID}/lap/99")
@@ -245,7 +234,8 @@ async def test_get_analysis_no_data():
     mock_ts.set_results([MockResult(scalar=0)])
 
     app = _make_app()
-    from db import get_timescale_session
+    from db import get_db_session, get_timescale_session
+    app.dependency_overrides[get_db_session] = lambda: MockAsyncSession()
     app.dependency_overrides[get_timescale_session] = lambda: mock_ts
 
     client = TestClient(app)

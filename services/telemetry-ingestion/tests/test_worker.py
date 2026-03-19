@@ -59,7 +59,7 @@ async def test_csv_job_completes():
         patch(f"{_WORKER}._publish_sse_event", new_callable=AsyncMock) as mock_sse,
         patch(f"{_WORKER}._DbSession") as mock_db_cls,
         patch(f"{_WORKER}._TsSession") as mock_ts_cls,
-        patch(f"{_WORKER}.create_internal_token", return_value="test-token"),
+        patch("dialed_shared.auth.create_internal_token", return_value="test-token"),
     ):
         # Set up mock context managers for sessions.
         mock_ts = AsyncMock()
@@ -98,7 +98,7 @@ async def test_csv_job_fails_on_error():
         patch(f"{_WORKER}._update_job_status", new_callable=AsyncMock) as mock_status,
         patch(f"{_WORKER}.fetch_channel_aliases", new_callable=AsyncMock, side_effect=ValueError("bad csv")),
         patch(f"{_WORKER}._publish_sse_event", new_callable=AsyncMock) as mock_sse,
-        patch(f"{_WORKER}.create_internal_token", return_value="test-token"),
+        patch("dialed_shared.auth.create_internal_token", return_value="test-token"),
     ):
         from worker import handle_job
         await handle_job(payload)
@@ -131,7 +131,7 @@ async def test_csv_best_lap_patch_tolerates_core_api_failure():
         patch(f"{_WORKER}._publish_sse_event", new_callable=AsyncMock),
         patch(f"{_WORKER}._DbSession") as mock_db_cls,
         patch(f"{_WORKER}._TsSession") as mock_ts_cls,
-        patch(f"{_WORKER}.create_internal_token", return_value="test-token"),
+        patch("dialed_shared.auth.create_internal_token", return_value="test-token"),
         # Make the patch call fail.
         patch(f"{_WORKER}._patch_session_best_lap", new_callable=AsyncMock, side_effect=Exception("connection refused")),
     ):
@@ -174,7 +174,7 @@ async def test_unknown_source_fails():
     with (
         patch(f"{_WORKER}._update_job_status", new_callable=AsyncMock) as mock_status,
         patch(f"{_WORKER}._publish_sse_event", new_callable=AsyncMock),
-        patch(f"{_WORKER}.create_internal_token", return_value="test-token"),
+        patch("dialed_shared.auth.create_internal_token", return_value="test-token"),
     ):
         from worker import handle_job
         await handle_job(payload)

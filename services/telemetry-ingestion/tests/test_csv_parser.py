@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -27,9 +27,9 @@ from tests.conftest import SESSION_ID
 @pytest.mark.asyncio
 async def test_fetch_channel_aliases(channel_aliases):
     """fetch_channel_aliases returns a flat raw_name→canonical_name dict."""
-    mock_resp = AsyncMock()
+    mock_resp = MagicMock()
     mock_resp.json.return_value = channel_aliases
-    mock_resp.raise_for_status = lambda: None
+    mock_resp.raise_for_status = MagicMock()
 
     with patch("pipelines.csv_parser.httpx.AsyncClient") as mock_client_cls:
         mock_client = AsyncMock()
