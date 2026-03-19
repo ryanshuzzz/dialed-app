@@ -95,9 +95,12 @@ class BikeStats(BaseModel):
     """Computed summary statistics for a bike."""
 
     maintenance_count: int = 0
+    last_maintenance_date: date | None = None
     modification_count: int = 0
+    active_mods_count: int = 0
     session_count: int = 0
     best_lap_ms: int | None = None
+    tire_pressure_last_checked: datetime | None = None
 
 
 class BikeResponse(BaseModel):

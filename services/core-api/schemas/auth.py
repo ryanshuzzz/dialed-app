@@ -118,12 +118,15 @@ class ApiKeyCreateResponse(BaseModel):
 
 
 class ApiKeySummary(BaseModel):
-    """API key listing entry — key_hash is never exposed, name is shown in full."""
+    """API key listing entry — shows masked key preview (last 4 chars only)."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     name: str
+    key_preview: str = Field(
+        "", description="Masked key showing only last 4 characters (e.g. '...a1b2')"
+    )
     last_used_at: datetime | None = None
     expires_at: datetime | None = None
     created_at: datetime
