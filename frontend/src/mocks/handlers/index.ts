@@ -10,6 +10,9 @@ import { sessionHandlers } from './sessions';
 import { ingestionHandlers } from './ingestion';
 import { aiHandlers } from './ai';
 import { telemetryHandlers } from './telemetry';
+import { progressHandlers } from './progress';
+import { authHandlers } from './auth';
+import { adminHandlers } from './admin';
 
 /**
  * Aggregate all MSW handlers here.
@@ -27,7 +30,7 @@ export const handlers: RequestHandler[] = [
   ...ingestionHandlers,
   ...aiHandlers,
   ...telemetryHandlers,
-  // ...progressHandlers,
-  // ...authHandlers,
-  // ...adminHandlers,
+  ...progressHandlers,
+  ...authHandlers,
+  ...adminHandlers,
 ];
