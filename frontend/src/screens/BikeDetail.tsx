@@ -4,6 +4,9 @@ import { useBike, useUpdateBike } from '@/hooks/useBikes';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { SuspensionSpecCard } from '@/components/garage/SuspensionSpecCard';
 import MaintenanceLogScreen from '@/screens/MaintenanceLog';
+import { TiresTab } from '@/components/garage/TiresTab';
+import { ModsTab } from '@/components/garage/ModsTab';
+import { OwnershipTab } from '@/components/garage/OwnershipTab';
 import type { UpdateBikeRequest, SuspensionSpec, SuspensionEndSettings } from '@/api/types';
 
 type TabId = 'overview' | 'maintenance' | 'tires' | 'mods' | 'ownership' | 'sessions';
@@ -438,19 +441,19 @@ export default function BikeDetail() {
 
       {activeTab === 'tires' && (
         <div data-testid="tires-tab">
-          <p className="text-gray-500 text-sm">Tire pressure history coming soon.</p>
+          {id && <TiresTab bikeId={id} />}
         </div>
       )}
 
       {activeTab === 'mods' && (
         <div data-testid="mods-tab">
-          <p className="text-gray-500 text-sm">Modifications list coming soon.</p>
+          {id && <ModsTab bikeId={id} />}
         </div>
       )}
 
       {activeTab === 'ownership' && (
         <div data-testid="ownership-tab">
-          <p className="text-gray-500 text-sm">Ownership history coming soon.</p>
+          {id && <OwnershipTab bikeId={id} />}
         </div>
       )}
 
