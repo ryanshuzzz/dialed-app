@@ -6,6 +6,10 @@ import { modificationHandlers } from './modifications';
 import { ownershipHandlers } from './ownership';
 import { trackHandlers } from './tracks';
 import { eventHandlers } from './events';
+import { sessionHandlers } from './sessions';
+import { ingestionHandlers } from './ingestion';
+import { aiHandlers } from './ai';
+import { telemetryHandlers } from './telemetry';
 
 /**
  * Aggregate all MSW handlers here.
@@ -19,10 +23,10 @@ export const handlers: RequestHandler[] = [
   ...ownershipHandlers,
   ...trackHandlers,
   ...eventHandlers,
-  // ...sessionHandlers,
-  // ...ingestionHandlers,
-  // ...aiHandlers,
-  // ...telemetryHandlers,
+  ...sessionHandlers,
+  ...ingestionHandlers,
+  ...aiHandlers,
+  ...telemetryHandlers,
   // ...progressHandlers,
   // ...authHandlers,
   // ...adminHandlers,
