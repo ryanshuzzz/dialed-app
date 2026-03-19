@@ -1,0 +1,7 @@
+# Code generation dependencies for generate-types.sh
+# Install with: pip install -r infra/scripts/requirements-codegen.txt
+#
+# json-schema-to-typescript is an npm package — install separately:
+#   npm install -g json-schema-to-typescript@15.0.2
+
+datamodel-code-generator[http]==0.26.5

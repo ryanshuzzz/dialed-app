@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dialed.app/schemas/progress.schema.json",
+  "title": "Progress schemas",
+  "description": "Progress tracking and suggestion efficacy data shapes for the Dialed platform",
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "A UUID v4 identifier"
+    },
+    "dateTime": {
+      "type": "string",
+      "format": "date-time",
+      "description": "An ISO 8601 date-time string with timezone (e.g. 2026-03-18T12:00:00Z)"
+    },
+    "EfficacyStats": {
+      "type": "object",
+      "description": "Records the measured lap time outcome for a specific AI suggestion. Written to core.efficacy_stats after the rider completes a session where they applied a suggestion. suggestion_id is a cross-schema reference — it points to ai.suggestions(id) but is stored without a foreign key constraint to avoid cross-schema coupling.",
+      "required": ["id", "user_id", "suggestion_id", "recorded_at"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid",
+          "description": "Unique efficacy record identifier"
+        },
+        "user_id": {
+          "$ref": "#/$defs/uuid",
+          "description": "ID of the rider whose outcome this record captures"
+        },
+        "suggestion_id": {
+          "$ref": "#/$defs/uuid",
+          "description": "Cross-schema reference to ai.suggestions(id). Stored without a database foreign key to avoid cross-schema coupling. Must be validated at the application layer."
+        },
+        "lap_delta_ms": {
+          "type": ["integer", "null"],
+          "description": "Net lap time change in milliseconds attributable to the applied suggestion. Negative values mean improvement (faster laps). Null if the outcome could not be measured."
+        },
+        "recorded_at": {
+          "$ref": "#/$defs/dateTime",
+          "description": "Timestamp when this efficacy outcome was recorded"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

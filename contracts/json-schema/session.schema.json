@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dialed.app/schemas/session.schema.json",
+  "title": "Session schemas",
+  "description": "Track session, setup snapshots, and change log data shapes for the Dialed platform",
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "A UUID v4 identifier"
+    },
+    "dateTime": {
+      "type": "string",
+      "format": "date-time",
+      "description": "An ISO 8601 date-time string with timezone (e.g. 2026-03-18T12:00:00Z)"
+    },
+    "TireSnapshot": {
+      "type": "object",
+      "description": "Tire specification snapshot at session time (brand, compound, age). Recorded separately for front and rear.",
+      "properties": {
+        "brand": {
+          "type": ["string", "null"],
+          "description": "Tire manufacturer (e.g. Pirelli, Dunlop, Bridgestone)"
+        },
+        "compound": {
+          "type": ["string", "null"],
+          "description": "Compound designation (e.g. SC1, SC2, Medium, Soft)"
+        },
+        "laps": {
+          "type": ["integer", "null"],
+          "description": "Number of laps on this tire at the start of the session"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Session": {
+      "type": "object",
+      "description": "A single on-track session within a track event. A session has a type (practice, qualifying, etc.) and captures lap times from two sources: manual rider entry and CSV logger data.",
+      "required": ["id", "event_id", "user_id", "session_type", "created_at", "updated_at"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid",
+          "description": "Unique session identifier"
+        },
+        "event_id": {
+          "$ref": "#/$defs/uuid",
+          "description": "ID of the track event this session belongs to"
+        },
+        "user_id": {
+          "$ref": "#/$defs/uuid",
+          "description": "ID of the rider who participated in this session"
+        },
+        "session_type": {
+          "type": "string",
+          "enum": ["practice", "qualifying", "race", "trackday"],
+          "description": "The type of session. Affects how lap times are compared and displayed."
+        },
+        "manual_best_lap_ms": {
+          "type": ["integer", "null"],
+          "description": "Best lap time in milliseconds as entered manually by the rider. Preserved as a fallback when no logger data is available."
+        },
+        "csv_best_lap_ms": {
+          "type": ["integer", "null"],
+          "description": "Best lap time in milliseconds extracted from the CSV data logger file. More accurate than manual entry — displayed preferentially when available."
+        },
+        "tire_front": {
+          "oneOf": [
+            { "$ref": "#/$defs/TireSnapshot" },
+            { "type": "null" }
+          ],
+          "description": "Front tire specification at the start of this session"
+        },
+        "tire_rear": {
+          "oneOf": [
+            { "$ref": "#/$defs/TireSnapshot" },
+            { "type": "null" }
+          ],
+          "description": "Rear tire specification at the start of this session"
+        },
+        "rider_feedback": {
+          "type": ["string", "null"],
+          "description": "Free-text rider notes about how the bike felt during this session (used as AI context)"
+        },
+        "voice_note_url": {
+          "type": ["string", "null"],
+          "format": "uri",
+          "description": "URL of an audio voice note in blob storage. Transcribed by the voice ingestion pipeline."
+        },
+        "created_at": {
+          "$ref": "#/$defs/dateTime",
+          "description": "Timestamp when this session was created"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/dateTime",
+          "description": "Timestamp when this session was last modified"
+        }
+      },
+      "additionalProperties": false
+    },
+    "SetupSnapshot": {
+      "type": "object",
+      "description": "An immutable snapshot of a bike's suspension settings at a point in time during a session. Append-only — never updated. Each save creates a new row, building a history of setup changes throughout the day.",
+      "required": ["id", "session_id", "settings", "created_at"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid",
+          "description": "Unique setup snapshot identifier"
+        },
+        "session_id": {
+          "$ref": "#/$defs/uuid",
+          "description": "ID of the session this snapshot belongs to"
+        },
+        "settings": {
+          "$ref": "suspension-spec.schema.json#/$defs/SuspensionSpec",
+          "description": "Full suspension spec at the time this snapshot was taken. Validated against the SuspensionSpec schema."
+        },
+        "created_at": {
+          "$ref": "#/$defs/dateTime",
+          "description": "Timestamp when this snapshot was saved. Defines the ordering of snapshots within a session."
+        }
+      },
+      "additionalProperties": false
+    },
+    "ChangeLog": {
+      "type": "object",
+      "description": "A single setting change made between or during sessions. Provides the AI with a structured history of what was tried and why.",
+      "required": ["id", "session_id", "parameter", "to_value", "applied_at"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid",
+          "description": "Unique change log entry identifier"
+        },
+        "session_id": {
+          "$ref": "#/$defs/uuid",
+          "description": "ID of the session in which this change was made"
+        },
+        "parameter": {
+          "type": "string",
+          "description": "Name of the setting that was changed (e.g. 'front.compression', 'rear.rebound', 'rear.preload')"
+        },
+        "from_value": {
+          "type": ["string", "null"],
+          "description": "Previous value of the parameter before this change. Null if the previous value was not recorded."
+        },
+        "to_value": {
+          "type": "string",
+          "description": "New value of the parameter after this change"
+        },
+        "rationale": {
+          "type": ["string", "null"],
+          "description": "Why this change was made (rider notes, AI suggestion reference, mechanic recommendation)"
+        },
+        "applied_at": {
+          "$ref": "#/$defs/dateTime",
+          "description": "Timestamp when this change was applied"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

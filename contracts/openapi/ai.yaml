@@ -1,0 +1,504 @@
+openapi: 3.1.0
+info:
+  title: Dialed AI API
+  description: |
+    AI service for the Dialed motorcycle tuning platform. Runs the rules engine,
+    builds prompts, calls Claude API, and owns suggestion storage. Generates
+    suggestions asynchronously via Redis task queue and streams results to
+    clients via SSE as Claude generates them. Reads session and bike data
+    from Core API via HTTP.
+  version: 1.0.0
+  contact:
+    name: Dialed Team
+
+servers:
+  - url: http://localhost:8003
+    description: Local development (direct)
+  - url: http://localhost:8000/api/v1
+    description: Local development (via gateway)
+
+tags:
+  - name: Suggestions
+    description: AI-generated suspension tuning suggestions with per-change tracking
+  - name: Change Tracking
+    description: Track rider actions on individual suggestion changes and record outcomes
+
+components:
+  securitySchemes:
+    InternalToken:
+      type: apiKey
+      in: header
+      name: X-Internal-Token
+      description: Internal JWT signed by the gateway after validating the Supabase JWT
+
+  schemas:
+    # ── Shared primitives ──
+    Uuid:
+      type: string
+      format: uuid
+      description: A UUID v4 identifier
+
+    DateTime:
+      type: string
+      format: date-time
+      description: ISO 8601 date-time with timezone
+
+    # ── Error envelope ──
+    ErrorResponse:
+      type: object
+      required: [error, code, request_id]
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+        code:
+          type: string
+          enum:
+            - VALIDATION_ERROR
+            - NOT_FOUND
+            - UNAUTHORIZED
+            - FORBIDDEN
+            - RATE_LIMITED
+            - INTERNAL_ERROR
+            - SERVICE_UNAVAILABLE
+          description: Machine-readable error code
+        request_id:
+          type: string
+          format: uuid
+          description: Request ID from X-Request-ID header
+
+    # ── Suggestion request/response schemas ──
+    SuggestRequest:
+      type: object
+      required: [session_id]
+      properties:
+        session_id:
+          $ref: '#/components/schemas/Uuid'
+          description: Session to generate a suggestion for. The AI worker fetches all context (bike, setup, telemetry, history) from Core API.
+
+    SuggestResponse:
+      type: object
+      required: [job_id]
+      properties:
+        job_id:
+          $ref: '#/components/schemas/Uuid'
+          description: Generation job ID — use for SSE streaming via GET /suggest/{job_id}/stream
+
+    GenerationJob:
+      type: object
+      required: [id, session_id, status, created_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        session_id:
+          $ref: '#/components/schemas/Uuid'
+        status:
+          type: string
+          enum: [pending, processing, streaming, complete, failed]
+          description: |
+            Job lifecycle: pending → processing → streaming → complete.
+            'streaming' means Claude is actively generating and SSE is live.
+        error_message:
+          type: ['string', 'null']
+          description: Error description if status is 'failed'
+        created_at:
+          $ref: '#/components/schemas/DateTime'
+        completed_at:
+          type: ['string', 'null']
+          format: date-time
+
+    # ── Suggestion schemas ──
+    Suggestion:
+      type: object
+      required: [id, session_id, user_id, suggestion_text, created_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        session_id:
+          $ref: '#/components/schemas/Uuid'
+        user_id:
+          $ref: '#/components/schemas/Uuid'
+        suggestion_text:
+          type: string
+          description: Full reasoning and recommendation text from Claude
+        changes:
+          type: array
+          description: Individual parameter changes extracted from the suggestion
+          items:
+            $ref: '#/components/schemas/SuggestionChange'
+        created_at:
+          $ref: '#/components/schemas/DateTime'
+
+    SuggestionSummary:
+      type: object
+      description: Abbreviated suggestion for list views (no full text or changes)
+      required: [id, session_id, user_id, created_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        session_id:
+          $ref: '#/components/schemas/Uuid'
+        user_id:
+          $ref: '#/components/schemas/Uuid'
+        suggestion_text:
+          type: string
+          description: Full suggestion text (may be truncated in list view)
+        change_count:
+          type: integer
+          description: Number of individual parameter changes in this suggestion
+        applied_count:
+          type: integer
+          description: Number of changes with applied or applied_modified status
+        created_at:
+          $ref: '#/components/schemas/DateTime'
+
+    SuggestionChange:
+      type: object
+      required: [id, suggestion_id, parameter, suggested_value, applied_status, created_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        suggestion_id:
+          $ref: '#/components/schemas/Uuid'
+        parameter:
+          type: string
+          description: Suspension parameter (e.g. 'front.compression', 'rear.rebound')
+        suggested_value:
+          type: string
+          description: Value Claude recommended
+        symptom:
+          type: ['string', 'null']
+          description: Handling symptom this change addresses
+        confidence:
+          type: ['number', 'null']
+          minimum: 0
+          maximum: 1
+          description: Rules engine confidence for this recommendation
+        applied_status:
+          type: string
+          enum: [not_applied, applied, applied_modified, skipped]
+          default: not_applied
+          description: How the rider acted on this change
+        actual_value:
+          type: ['string', 'null']
+          description: Value the rider actually set (when applied_modified)
+        outcome_lap_delta_ms:
+          type: ['integer', 'null']
+          description: Lap time change in ms after applying (negative = faster)
+        applied_at:
+          type: ['string', 'null']
+          format: date-time
+          description: When the rider acted on this change
+        created_at:
+          $ref: '#/components/schemas/DateTime'
+
+    # ── Change tracking request schemas ──
+    UpdateChangeStatusRequest:
+      type: object
+      required: [applied_status]
+      properties:
+        applied_status:
+          type: string
+          enum: [not_applied, applied, applied_modified, skipped]
+          description: New status for this change
+        actual_value:
+          type: ['string', 'null']
+          description: Required when applied_status is 'applied_modified'
+
+    RecordOutcomeRequest:
+      type: object
+      required: [outcome_lap_delta_ms]
+      properties:
+        outcome_lap_delta_ms:
+          type: integer
+          description: Lap time change in ms (negative = improvement / faster)
+
+    UpdatedChange:
+      type: object
+      description: The change after being updated
+      allOf:
+        - $ref: '#/components/schemas/SuggestionChange'
+
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Missing required field: session_id"
+            code: VALIDATION_ERROR
+            request_id: 550e8400-e29b-41d4-a716-446655440000
+
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Missing or expired authentication token"
+            code: UNAUTHORIZED
+            request_id: 550e8400-e29b-41d4-a716-446655440000
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Suggestion not found"
+            code: NOT_FOUND
+            request_id: 550e8400-e29b-41d4-a716-446655440000
+
+    UnprocessableEntity:
+      description: Request body is syntactically valid but semantically incorrect
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "actual_value is required when applied_status is applied_modified"
+            code: VALIDATION_ERROR
+            request_id: 550e8400-e29b-41d4-a716-446655440000
+
+    InternalError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "An unexpected error occurred"
+            code: INTERNAL_ERROR
+            request_id: 550e8400-e29b-41d4-a716-446655440000
+
+security:
+  - InternalToken: []
+
+paths:
+  # ═══════════════════════ SUGGESTION GENERATION ═══════════════════════
+  /suggest:
+    post:
+      operationId: requestSuggestion
+      tags: [Suggestions]
+      summary: Request an AI-generated suspension suggestion
+      description: |
+        Creates a generation job, pushes it to the dialed:ai Redis queue, and
+        returns the job_id immediately. The AI worker fetches session context
+        from Core API, runs the rules engine, builds a prompt, and streams
+        Claude's response via SSE at GET /suggest/{job_id}/stream.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SuggestRequest'
+      responses:
+        '202':
+          description: Generation job created and queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuggestResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /suggest/{job_id}/stream:
+    parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+        description: Generation job ID
+    get:
+      operationId: streamSuggestion
+      tags: [Suggestions]
+      summary: SSE stream of suggestion text as Claude generates it
+      description: |
+        Opens a Server-Sent Events stream that emits incremental text chunks
+        as Claude generates the suggestion. Events:
+
+        - `event: status` — job state change (processing, streaming)
+        - `event: token` — incremental text chunk (data is the raw text fragment)
+        - `event: complete` — final event with full Suggestion object including changes
+        - `event: failed` — error event with error_message
+
+        If the job has already completed, the complete event is sent immediately.
+        The stream closes after the terminal event.
+      responses:
+        '200':
+          description: SSE event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  SSE events:
+                  - event: status, data: {"status": "processing"}
+                  - event: status, data: {"status": "streaming"}
+                  - event: token, data: "incremental text chunk"
+                  - event: complete, data: {full Suggestion object}
+                  - event: failed, data: {"error_message": "..."}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /suggest/session/{session_id}:
+    parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+        description: Session ID
+    get:
+      operationId: listSuggestionsBySession
+      tags: [Suggestions]
+      summary: List all suggestions for a session
+      responses:
+        '200':
+          description: Suggestions for the session (ordered by created_at descending)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SuggestionSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /suggest/{suggestion_id}:
+    parameters:
+      - name: suggestion_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+        description: Suggestion ID
+    get:
+      operationId: getSuggestion
+      tags: [Suggestions]
+      summary: Get suggestion detail with per-change tracking
+      responses:
+        '200':
+          description: Full suggestion with all changes and their tracking status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Suggestion'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ═══════════════════════ CHANGE TRACKING ═══════════════════════
+  /suggest/{suggestion_id}/changes/{change_id}:
+    parameters:
+      - name: suggestion_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+        description: Parent suggestion ID
+      - name: change_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+        description: Suggestion change ID
+    patch:
+      operationId: updateChangeStatus
+      tags: [Change Tracking]
+      summary: Update the applied_status of a suggestion change
+      description: |
+        Called when a rider applies, modifies, or skips an individual change
+        from a suggestion. If applied_status is 'applied_modified', the
+        actual_value field must be provided.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateChangeStatusRequest'
+      responses:
+        '200':
+          description: Change status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdatedChange'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /suggest/{suggestion_id}/changes/{change_id}/outcome:
+    parameters:
+      - name: suggestion_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+        description: Parent suggestion ID
+      - name: change_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+        description: Suggestion change ID
+    patch:
+      operationId: recordChangeOutcome
+      tags: [Change Tracking]
+      summary: Record the lap time outcome after applying a change
+      description: |
+        Called after the rider completes a session where they applied this
+        change. Records the lap time delta to measure suggestion efficacy.
+        Negative values mean improvement (faster laps).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordOutcomeRequest'
+      responses:
+        '200':
+          description: Outcome recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdatedChange'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'

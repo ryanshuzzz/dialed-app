@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dialed.app/schemas/auth.schema.json",
+  "title": "Auth schemas",
+  "description": "User account, authentication token, and API key data shapes for the Dialed platform",
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "A UUID v4 identifier"
+    },
+    "dateTime": {
+      "type": "string",
+      "format": "date-time",
+      "description": "An ISO 8601 date-time string with timezone (e.g. 2026-03-18T12:00:00Z)"
+    },
+    "User": {
+      "type": "object",
+      "description": "A Dialed platform user account. Represents any rider from casual street riders to competitive racers.",
+      "required": ["id", "email", "skill_level", "rider_type", "units", "created_at", "updated_at"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid",
+          "description": "Unique user identifier"
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "User's email address, used for login and notifications"
+        },
+        "display_name": {
+          "type": ["string", "null"],
+          "description": "Optional display name shown in the UI. Falls back to email prefix if not set."
+        },
+        "skill_level": {
+          "type": "string",
+          "enum": ["novice", "intermediate", "expert"],
+          "description": "Rider's self-assessed skill level. Influences AI suggestion tone and complexity."
+        },
+        "rider_type": {
+          "type": "string",
+          "enum": ["street", "casual_track", "competitive"],
+          "description": "Primary riding context. Street riders see garage-focused features; competitive riders see full telemetry and AI suggestion features."
+        },
+        "units": {
+          "type": "string",
+          "enum": ["metric", "imperial"],
+          "description": "Preferred unit system. Affects display of distances, temperatures, and pressures throughout the UI."
+        },
+        "created_at": {
+          "$ref": "#/$defs/dateTime",
+          "description": "Timestamp when the account was created"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/dateTime",
+          "description": "Timestamp when the account was last modified"
+        }
+      },
+      "additionalProperties": false
+    },
+    "AuthToken": {
+      "type": "object",
+      "description": "A persistent API auth token (not a Supabase session — used for long-lived programmatic access or internal token tracking).",
+      "required": ["id", "user_id", "token_hash", "expires_at", "created_at"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid",
+          "description": "Unique token record identifier"
+        },
+        "user_id": {
+          "$ref": "#/$defs/uuid",
+          "description": "ID of the user this token belongs to"
+        },
+        "token_hash": {
+          "type": "string",
+          "description": "Bcrypt or SHA-256 hash of the raw token value. The raw token is only returned at creation time."
+        },
+        "expires_at": {
+          "$ref": "#/$defs/dateTime",
+          "description": "Timestamp after which this token is no longer valid"
+        },
+        "created_at": {
+          "$ref": "#/$defs/dateTime",
+          "description": "Timestamp when this token was issued"
+        }
+      },
+      "additionalProperties": false
+    },
+    "UserApiKey": {
+      "type": "object",
+      "description": "A named API key for programmatic or team access. Shown in the UI as a named credential.",
+      "required": ["id", "user_id", "name", "key_hash", "created_at"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid",
+          "description": "Unique API key identifier"
+        },
+        "user_id": {
+          "$ref": "#/$defs/uuid",
+          "description": "ID of the user who owns this API key"
+        },
+        "name": {
+          "type": "string",
+          "description": "Human-readable label for this key (e.g. 'Paddock laptop', 'Crew chief iPad')"
+        },
+        "key_hash": {
+          "type": "string",
+          "description": "Hash of the raw API key. The raw key is only returned at creation time."
+        },
+        "last_used_at": {
+          "oneOf": [
+            { "$ref": "#/$defs/dateTime" },
+            { "type": "null" }
+          ],
+          "description": "Timestamp of the most recent successful authentication with this key, or null if never used"
+        },
+        "expires_at": {
+          "oneOf": [
+            { "$ref": "#/$defs/dateTime" },
+            { "type": "null" }
+          ],
+          "description": "Optional expiry timestamp. Null means the key does not expire."
+        },
+        "created_at": {
+          "$ref": "#/$defs/dateTime",
+          "description": "Timestamp when this API key was created"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

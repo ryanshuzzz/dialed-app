@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dialed.app/schemas/suspension-spec.schema.json",
+  "title": "Suspension spec schema",
+  "description": "Versioned suspension specification stored as validated JSONB inside the bikes table. The schema_version field enables future migrations without breaking stored data.",
+  "$defs": {
+    "SuspensionEndSettings": {
+      "type": "object",
+      "description": "Settings for one end of the suspension (front fork or rear shock). All adjustment fields are optional — riders fill in what they have and know.",
+      "properties": {
+        "compression": {
+          "type": ["number", "null"],
+          "description": "Compression damping clicks from full hard. A lower number means softer compression."
+        },
+        "rebound": {
+          "type": ["number", "null"],
+          "description": "Rebound damping clicks from full hard. A lower number means faster rebound."
+        },
+        "preload": {
+          "type": ["number", "null"],
+          "description": "Spring preload in mm (if measured) or turns from minimum. Affects sag and ride height."
+        },
+        "spring_rate": {
+          "type": ["number", "null"],
+          "description": "Spring rate in N/mm. Set when a non-standard spring is fitted."
+        },
+        "oil_level": {
+          "type": ["number", "null"],
+          "description": "Fork oil level in mm from the top of the inner tube with spring removed. Front-end setting only."
+        },
+        "ride_height": {
+          "type": ["number", "null"],
+          "description": "Ride height in mm, typically measured as linkage eye-to-eye or shock length."
+        }
+      },
+      "additionalProperties": false
+    },
+    "SuspensionSpec": {
+      "type": "object",
+      "description": "Complete versioned suspension specification for a bike. Stored as JSONB in core.bikes.suspension_spec and validated by the Pydantic SuspensionSpec model on write. The schema_version field enables safe in-place migrations.",
+      "required": ["schema_version"],
+      "properties": {
+        "schema_version": {
+          "type": "integer",
+          "const": 1,
+          "description": "Schema version number. Increment this when the shape of this object changes. Services must handle or reject unknown versions."
+        },
+        "front": {
+          "$ref": "#/$defs/SuspensionEndSettings",
+          "description": "Front fork / damper settings"
+        },
+        "rear": {
+          "$ref": "#/$defs/SuspensionEndSettings",
+          "description": "Rear shock / linkage settings"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

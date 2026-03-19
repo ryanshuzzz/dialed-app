@@ -1,0 +1,2630 @@
+openapi: 3.1.0
+info:
+  title: Dialed Core API
+  description: |
+    Core API service for the Dialed motorcycle management and tuning platform.
+    Owns users, auth, bikes (garage), maintenance, tire pressure, modifications,
+    ownership, tracks, events, sessions, setup snapshots, change logs, progress,
+    efficacy analytics, and channel aliases.
+  version: 1.0.0
+  contact:
+    name: Dialed Team
+
+servers:
+  - url: http://localhost:8001
+    description: Local development (direct)
+  - url: http://localhost:8000/api/v1
+    description: Local development (via gateway)
+
+tags:
+  - name: Auth
+    description: Registration, login, token refresh, and profile management
+  - name: API Keys
+    description: Named API keys for programmatic or team access
+  - name: Bikes
+    description: Motorcycle CRUD with soft delete
+  - name: Maintenance
+    description: Maintenance log entries nested under a bike
+  - name: Tire Pressure
+    description: Tire pressure readings nested under a bike
+  - name: Modifications
+    description: Parts and modification history nested under a bike
+  - name: Ownership
+    description: Ownership timeline nested under a bike
+  - name: Tracks
+    description: Track / circuit CRUD
+  - name: Events
+    description: Track day events with weather/surface conditions
+  - name: Sessions
+    description: On-track sessions, setup snapshots, and setting change logs
+  - name: Progress
+    description: Lap time trends, suggestion efficacy, and session history
+  - name: Admin
+    description: Administrative endpoints for channel alias management
+
+components:
+  securitySchemes:
+    InternalToken:
+      type: apiKey
+      in: header
+      name: X-Internal-Token
+      description: Internal JWT signed by the gateway after validating the Supabase JWT. Contains user_id and exp.
+
+  schemas:
+    # ── Shared primitives ──
+    Uuid:
+      type: string
+      format: uuid
+      description: A UUID v4 identifier
+
+    DateTime:
+      type: string
+      format: date-time
+      description: ISO 8601 date-time with timezone
+
+    Date:
+      type: string
+      format: date
+      description: ISO 8601 calendar date (YYYY-MM-DD)
+
+    # ── Error envelope ──
+    ErrorResponse:
+      type: object
+      required: [error, code, request_id]
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+        code:
+          type: string
+          enum:
+            - VALIDATION_ERROR
+            - NOT_FOUND
+            - UNAUTHORIZED
+            - FORBIDDEN
+            - RATE_LIMITED
+            - INTERNAL_ERROR
+            - SERVICE_UNAVAILABLE
+          description: Machine-readable error code
+        request_id:
+          type: string
+          format: uuid
+          description: Request ID from X-Request-ID header for tracing
+
+    # ── Auth schemas ──
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address
+        password:
+          type: string
+          minLength: 8
+          description: Account password (min 8 characters)
+        display_name:
+          type: string
+          description: Optional display name
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      required: [user_id, token, refresh_token]
+      properties:
+        user_id:
+          $ref: '#/components/schemas/Uuid'
+        token:
+          type: string
+          description: JWT access token
+        refresh_token:
+          type: string
+          description: Refresh token for obtaining new access tokens
+
+    RefreshRequest:
+      type: object
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+
+    RefreshResponse:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: New JWT access token
+
+    UserProfile:
+      type: object
+      required: [user_id, email, skill_level, rider_type, units]
+      properties:
+        user_id:
+          $ref: '#/components/schemas/Uuid'
+        email:
+          type: string
+          format: email
+        display_name:
+          type: ['string', 'null']
+        skill_level:
+          type: string
+          enum: [novice, intermediate, expert]
+        rider_type:
+          type: string
+          enum: [street, casual_track, competitive]
+        units:
+          type: string
+          enum: [metric, imperial]
+
+    UpdateProfileRequest:
+      type: object
+      properties:
+        display_name:
+          type: ['string', 'null']
+        skill_level:
+          type: string
+          enum: [novice, intermediate, expert]
+        rider_type:
+          type: string
+          enum: [street, casual_track, competitive]
+        units:
+          type: string
+          enum: [metric, imperial]
+
+    # ── API Key schemas ──
+    ApiKeyCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          description: Human-readable label (e.g. 'Paddock laptop')
+        expires_at:
+          type: ['string', 'null']
+          format: date-time
+          description: Optional expiry timestamp
+
+    ApiKeyCreateResponse:
+      type: object
+      required: [id, name, key, created_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+        key:
+          type: string
+          description: Raw API key — only returned at creation time
+        expires_at:
+          type: ['string', 'null']
+          format: date-time
+        created_at:
+          $ref: '#/components/schemas/DateTime'
+
+    ApiKeySummary:
+      type: object
+      required: [id, name, created_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+        last_used_at:
+          type: ['string', 'null']
+          format: date-time
+        expires_at:
+          type: ['string', 'null']
+          format: date-time
+        created_at:
+          $ref: '#/components/schemas/DateTime'
+
+    # ── Suspension spec (inline from JSON Schema) ──
+    SuspensionEndSettings:
+      type: object
+      description: Settings for one end of suspension (front or rear)
+      properties:
+        compression:
+          type: ['number', 'null']
+          description: Compression damping clicks from full hard
+        rebound:
+          type: ['number', 'null']
+          description: Rebound damping clicks from full hard
+        preload:
+          type: ['number', 'null']
+          description: Spring preload in mm or turns from minimum
+        spring_rate:
+          type: ['number', 'null']
+          description: Spring rate in N/mm
+        oil_level:
+          type: ['number', 'null']
+          description: Fork oil level in mm (front only)
+        ride_height:
+          type: ['number', 'null']
+          description: Ride height in mm
+
+    SuspensionSpec:
+      type: object
+      required: [schema_version]
+      properties:
+        schema_version:
+          type: integer
+          const: 1
+        front:
+          $ref: '#/components/schemas/SuspensionEndSettings'
+        rear:
+          $ref: '#/components/schemas/SuspensionEndSettings'
+
+    # ── Conditions ──
+    Conditions:
+      type: object
+      description: Weather and track surface conditions
+      properties:
+        temp_c:
+          type: ['number', 'null']
+          description: Ambient air temperature in Celsius
+        humidity_pct:
+          type: ['number', 'null']
+          minimum: 0
+          maximum: 100
+          description: Relative humidity percentage
+        track_temp_c:
+          type: ['number', 'null']
+          description: Track surface temperature in Celsius
+        wind_kph:
+          type: ['number', 'null']
+          minimum: 0
+          description: Wind speed in km/h
+        condition:
+          type: ['string', 'null']
+          enum: [dry, damp, wet, mixed, null]
+          description: Overall track surface condition
+        notes:
+          type: ['string', 'null']
+          description: Free-text conditions notes
+
+    # ── Bike schemas ──
+    Bike:
+      type: object
+      required: [id, user_id, make, model, suspension_spec, status, created_at, updated_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        user_id:
+          $ref: '#/components/schemas/Uuid'
+        make:
+          type: string
+        model:
+          type: string
+        year:
+          type: ['integer', 'null']
+        vin:
+          type: ['string', 'null']
+        color:
+          type: ['string', 'null']
+        mileage_km:
+          type: ['integer', 'null']
+        engine_hours:
+          type: ['number', 'null']
+        exhaust:
+          type: ['string', 'null']
+        ecu:
+          type: ['string', 'null']
+        gearing_front:
+          type: ['integer', 'null']
+        gearing_rear:
+          type: ['integer', 'null']
+        suspension_spec:
+          $ref: '#/components/schemas/SuspensionSpec'
+        notes:
+          type: ['string', 'null']
+        status:
+          type: string
+          enum: [owned, sold, stored, in_repair]
+        deleted_at:
+          type: ['string', 'null']
+          format: date-time
+        created_at:
+          $ref: '#/components/schemas/DateTime'
+        updated_at:
+          $ref: '#/components/schemas/DateTime'
+
+    BikeDetail:
+      description: Bike with summary stats (maintenance count, mod count, session count, best lap)
+      allOf:
+        - $ref: '#/components/schemas/Bike'
+        - type: object
+          properties:
+            stats:
+              type: object
+              properties:
+                maintenance_count:
+                  type: integer
+                  description: Total maintenance log entries
+                modification_count:
+                  type: integer
+                  description: Total modification records
+                session_count:
+                  type: integer
+                  description: Total track sessions
+                best_lap_ms:
+                  type: ['integer', 'null']
+                  description: Best lap time across all sessions in ms
+
+    CreateBikeRequest:
+      type: object
+      required: [make, model]
+      properties:
+        make:
+          type: string
+        model:
+          type: string
+        year:
+          type: ['integer', 'null']
+        vin:
+          type: ['string', 'null']
+        color:
+          type: ['string', 'null']
+        mileage_km:
+          type: ['integer', 'null']
+        engine_hours:
+          type: ['number', 'null']
+        exhaust:
+          type: ['string', 'null']
+        ecu:
+          type: ['string', 'null']
+        gearing_front:
+          type: ['integer', 'null']
+        gearing_rear:
+          type: ['integer', 'null']
+        suspension_spec:
+          $ref: '#/components/schemas/SuspensionSpec'
+        notes:
+          type: ['string', 'null']
+        status:
+          type: string
+          enum: [owned, sold, stored, in_repair]
+          default: owned
+
+    UpdateBikeRequest:
+      type: object
+      properties:
+        make:
+          type: string
+        model:
+          type: string
+        year:
+          type: ['integer', 'null']
+        vin:
+          type: ['string', 'null']
+        color:
+          type: ['string', 'null']
+        mileage_km:
+          type: ['integer', 'null']
+        engine_hours:
+          type: ['number', 'null']
+        exhaust:
+          type: ['string', 'null']
+        ecu:
+          type: ['string', 'null']
+        gearing_front:
+          type: ['integer', 'null']
+        gearing_rear:
+          type: ['integer', 'null']
+        suspension_spec:
+          $ref: '#/components/schemas/SuspensionSpec'
+        notes:
+          type: ['string', 'null']
+        status:
+          type: string
+          enum: [owned, sold, stored, in_repair]
+
+    # ── Maintenance schemas ──
+    MaintenanceLog:
+      type: object
+      required: [id, bike_id, user_id, category, performed_at, created_at, updated_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        bike_id:
+          $ref: '#/components/schemas/Uuid'
+        user_id:
+          $ref: '#/components/schemas/Uuid'
+        category:
+          type: string
+          enum: [oil_change, coolant, brake_fluid, chain, air_filter, spark_plugs, valve_check, brake_pads, battery, general_service, other]
+        description:
+          type: ['string', 'null']
+        mileage_km:
+          type: ['integer', 'null']
+        engine_hours:
+          type: ['number', 'null']
+        cost:
+          type: ['number', 'null']
+        currency:
+          type: ['string', 'null']
+          default: USD
+        performed_by:
+          type: ['string', 'null']
+        performed_at:
+          $ref: '#/components/schemas/Date'
+        next_due_km:
+          type: ['integer', 'null']
+        next_due_date:
+          type: ['string', 'null']
+          format: date
+        notes:
+          type: ['string', 'null']
+        receipt_url:
+          type: ['string', 'null']
+          format: uri
+        created_at:
+          $ref: '#/components/schemas/DateTime'
+        updated_at:
+          $ref: '#/components/schemas/DateTime'
+
+    CreateMaintenanceRequest:
+      type: object
+      required: [category, performed_at]
+      properties:
+        category:
+          type: string
+          enum: [oil_change, coolant, brake_fluid, chain, air_filter, spark_plugs, valve_check, brake_pads, battery, general_service, other]
+        description:
+          type: ['string', 'null']
+        mileage_km:
+          type: ['integer', 'null']
+        engine_hours:
+          type: ['number', 'null']
+        cost:
+          type: ['number', 'null']
+        currency:
+          type: ['string', 'null']
+          default: USD
+        performed_by:
+          type: ['string', 'null']
+        performed_at:
+          $ref: '#/components/schemas/Date'
+        next_due_km:
+          type: ['integer', 'null']
+        next_due_date:
+          type: ['string', 'null']
+          format: date
+        notes:
+          type: ['string', 'null']
+        receipt_url:
+          type: ['string', 'null']
+          format: uri
+
+    UpdateMaintenanceRequest:
+      type: object
+      properties:
+        category:
+          type: string
+          enum: [oil_change, coolant, brake_fluid, chain, air_filter, spark_plugs, valve_check, brake_pads, battery, general_service, other]
+        description:
+          type: ['string', 'null']
+        mileage_km:
+          type: ['integer', 'null']
+        engine_hours:
+          type: ['number', 'null']
+        cost:
+          type: ['number', 'null']
+        currency:
+          type: ['string', 'null']
+        performed_by:
+          type: ['string', 'null']
+        performed_at:
+          $ref: '#/components/schemas/Date'
+        next_due_km:
+          type: ['integer', 'null']
+        next_due_date:
+          type: ['string', 'null']
+          format: date
+        notes:
+          type: ['string', 'null']
+        receipt_url:
+          type: ['string', 'null']
+          format: uri
+
+    UpcomingMaintenance:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required: [id, bike_id, category, performed_at]
+            properties:
+              id:
+                $ref: '#/components/schemas/Uuid'
+              bike_id:
+                $ref: '#/components/schemas/Uuid'
+              category:
+                type: string
+              performed_at:
+                $ref: '#/components/schemas/Date'
+              next_due_km:
+                type: ['integer', 'null']
+              next_due_date:
+                type: ['string', 'null']
+                format: date
+              current_mileage_km:
+                type: ['integer', 'null']
+                description: Current bike odometer for distance-to-due calculation
+
+    # ── Tire Pressure schemas ──
+    TirePressureLog:
+      type: object
+      required: [id, bike_id, user_id, recorded_at, created_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        bike_id:
+          $ref: '#/components/schemas/Uuid'
+        user_id:
+          $ref: '#/components/schemas/Uuid'
+        front_psi:
+          type: ['number', 'null']
+        rear_psi:
+          type: ['number', 'null']
+        front_temp_c:
+          type: ['number', 'null']
+        rear_temp_c:
+          type: ['number', 'null']
+        context:
+          type: string
+          enum: [cold, pre_ride, post_ride, pit_stop, pre_session, post_session]
+          default: pre_ride
+        session_id:
+          type: ['string', 'null']
+          format: uuid
+        notes:
+          type: ['string', 'null']
+        recorded_at:
+          $ref: '#/components/schemas/DateTime'
+        created_at:
+          $ref: '#/components/schemas/DateTime'
+
+    CreateTirePressureRequest:
+      type: object
+      properties:
+        front_psi:
+          type: ['number', 'null']
+        rear_psi:
+          type: ['number', 'null']
+        front_temp_c:
+          type: ['number', 'null']
+        rear_temp_c:
+          type: ['number', 'null']
+        context:
+          type: string
+          enum: [cold, pre_ride, post_ride, pit_stop, pre_session, post_session]
+          default: pre_ride
+        session_id:
+          type: ['string', 'null']
+          format: uuid
+        notes:
+          type: ['string', 'null']
+        recorded_at:
+          $ref: '#/components/schemas/DateTime'
+
+    # ── Modification schemas ──
+    Modification:
+      type: object
+      required: [id, bike_id, user_id, action, category, part_name, installed_at, created_at, updated_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        bike_id:
+          $ref: '#/components/schemas/Uuid'
+        user_id:
+          $ref: '#/components/schemas/Uuid'
+        action:
+          type: string
+          enum: [installed, removed, swapped, upgraded, repaired]
+        category:
+          type: string
+          enum: [exhaust, ecu, suspension, brakes, wheels_tires, bodywork, controls, lighting, engine, drivetrain, electronics, ergonomics, other]
+        part_name:
+          type: string
+        brand:
+          type: ['string', 'null']
+        part_number:
+          type: ['string', 'null']
+        cost:
+          type: ['number', 'null']
+        currency:
+          type: ['string', 'null']
+          default: USD
+        installed_at:
+          $ref: '#/components/schemas/Date'
+        removed_at:
+          type: ['string', 'null']
+          format: date
+        mileage_km:
+          type: ['integer', 'null']
+        notes:
+          type: ['string', 'null']
+        created_at:
+          $ref: '#/components/schemas/DateTime'
+        updated_at:
+          $ref: '#/components/schemas/DateTime'
+
+    CreateModificationRequest:
+      type: object
+      required: [action, category, part_name, installed_at]
+      properties:
+        action:
+          type: string
+          enum: [installed, removed, swapped, upgraded, repaired]
+        category:
+          type: string
+          enum: [exhaust, ecu, suspension, brakes, wheels_tires, bodywork, controls, lighting, engine, drivetrain, electronics, ergonomics, other]
+        part_name:
+          type: string
+        brand:
+          type: ['string', 'null']
+        part_number:
+          type: ['string', 'null']
+        cost:
+          type: ['number', 'null']
+        currency:
+          type: ['string', 'null']
+          default: USD
+        installed_at:
+          $ref: '#/components/schemas/Date'
+        removed_at:
+          type: ['string', 'null']
+          format: date
+        mileage_km:
+          type: ['integer', 'null']
+        notes:
+          type: ['string', 'null']
+
+    UpdateModificationRequest:
+      type: object
+      properties:
+        action:
+          type: string
+          enum: [installed, removed, swapped, upgraded, repaired]
+        category:
+          type: string
+          enum: [exhaust, ecu, suspension, brakes, wheels_tires, bodywork, controls, lighting, engine, drivetrain, electronics, ergonomics, other]
+        part_name:
+          type: string
+        brand:
+          type: ['string', 'null']
+        part_number:
+          type: ['string', 'null']
+        cost:
+          type: ['number', 'null']
+        currency:
+          type: ['string', 'null']
+        installed_at:
+          $ref: '#/components/schemas/Date'
+        removed_at:
+          type: ['string', 'null']
+          format: date
+        mileage_km:
+          type: ['integer', 'null']
+        notes:
+          type: ['string', 'null']
+
+    # ── Ownership schemas ──
+    OwnershipHistory:
+      type: object
+      required: [id, bike_id, user_id, event_type, date, created_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        bike_id:
+          $ref: '#/components/schemas/Uuid'
+        user_id:
+          $ref: '#/components/schemas/Uuid'
+        event_type:
+          type: string
+          enum: [purchased, sold, traded, gifted, transferred]
+        date:
+          $ref: '#/components/schemas/Date'
+        price:
+          type: ['number', 'null']
+        currency:
+          type: ['string', 'null']
+          default: USD
+        mileage_km:
+          type: ['integer', 'null']
+        counterparty:
+          type: ['string', 'null']
+        notes:
+          type: ['string', 'null']
+        created_at:
+          $ref: '#/components/schemas/DateTime'
+
+    CreateOwnershipRequest:
+      type: object
+      required: [event_type, date]
+      properties:
+        event_type:
+          type: string
+          enum: [purchased, sold, traded, gifted, transferred]
+        date:
+          $ref: '#/components/schemas/Date'
+        price:
+          type: ['number', 'null']
+        currency:
+          type: ['string', 'null']
+          default: USD
+        mileage_km:
+          type: ['integer', 'null']
+        counterparty:
+          type: ['string', 'null']
+        notes:
+          type: ['string', 'null']
+
+    # ── Track schemas ──
+    Track:
+      type: object
+      required: [id, name, created_at, updated_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        name:
+          type: string
+        config:
+          type: ['string', 'null']
+          description: Track configuration name (e.g. 'Full', 'National', 'West')
+        surface_notes:
+          type: ['string', 'null']
+        gps_bounds:
+          type: ['object', 'null']
+          description: GeoJSON-like bounding box or polygon for the track
+        created_at:
+          $ref: '#/components/schemas/DateTime'
+        updated_at:
+          $ref: '#/components/schemas/DateTime'
+
+    CreateTrackRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        config:
+          type: ['string', 'null']
+        surface_notes:
+          type: ['string', 'null']
+        gps_bounds:
+          type: ['object', 'null']
+
+    UpdateTrackRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        config:
+          type: ['string', 'null']
+        surface_notes:
+          type: ['string', 'null']
+        gps_bounds:
+          type: ['object', 'null']
+
+    # ── Event schemas ──
+    Event:
+      type: object
+      required: [id, user_id, bike_id, track_id, date, conditions, created_at, updated_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        user_id:
+          $ref: '#/components/schemas/Uuid'
+        bike_id:
+          $ref: '#/components/schemas/Uuid'
+        track_id:
+          $ref: '#/components/schemas/Uuid'
+        date:
+          $ref: '#/components/schemas/Date'
+        conditions:
+          $ref: '#/components/schemas/Conditions'
+        created_at:
+          $ref: '#/components/schemas/DateTime'
+        updated_at:
+          $ref: '#/components/schemas/DateTime'
+
+    CreateEventRequest:
+      type: object
+      required: [bike_id, track_id, date]
+      properties:
+        bike_id:
+          $ref: '#/components/schemas/Uuid'
+        track_id:
+          $ref: '#/components/schemas/Uuid'
+        date:
+          $ref: '#/components/schemas/Date'
+        conditions:
+          $ref: '#/components/schemas/Conditions'
+
+    UpdateEventRequest:
+      type: object
+      properties:
+        bike_id:
+          $ref: '#/components/schemas/Uuid'
+        track_id:
+          $ref: '#/components/schemas/Uuid'
+        date:
+          $ref: '#/components/schemas/Date'
+        conditions:
+          $ref: '#/components/schemas/Conditions'
+
+    # ── Session schemas ──
+    TireSnapshot:
+      type: object
+      properties:
+        brand:
+          type: ['string', 'null']
+        compound:
+          type: ['string', 'null']
+        laps:
+          type: ['integer', 'null']
+
+    Session:
+      type: object
+      required: [id, event_id, user_id, session_type, created_at, updated_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        event_id:
+          $ref: '#/components/schemas/Uuid'
+        user_id:
+          $ref: '#/components/schemas/Uuid'
+        session_type:
+          type: string
+          enum: [practice, qualifying, race, trackday]
+        manual_best_lap_ms:
+          type: ['integer', 'null']
+        csv_best_lap_ms:
+          type: ['integer', 'null']
+        tire_front:
+          oneOf:
+            - $ref: '#/components/schemas/TireSnapshot'
+            - type: 'null'
+        tire_rear:
+          oneOf:
+            - $ref: '#/components/schemas/TireSnapshot'
+            - type: 'null'
+        rider_feedback:
+          type: ['string', 'null']
+        voice_note_url:
+          type: ['string', 'null']
+          format: uri
+        created_at:
+          $ref: '#/components/schemas/DateTime'
+        updated_at:
+          $ref: '#/components/schemas/DateTime'
+
+    SessionDetail:
+      description: Full session with embedded snapshots and change log
+      allOf:
+        - $ref: '#/components/schemas/Session'
+        - type: object
+          properties:
+            snapshots:
+              type: array
+              items:
+                $ref: '#/components/schemas/SetupSnapshot'
+            changes:
+              type: array
+              items:
+                $ref: '#/components/schemas/ChangeLog'
+
+    CreateSessionRequest:
+      type: object
+      required: [event_id, session_type]
+      properties:
+        event_id:
+          $ref: '#/components/schemas/Uuid'
+        session_type:
+          type: string
+          enum: [practice, qualifying, race, trackday]
+        manual_best_lap_ms:
+          type: ['integer', 'null']
+        tire_front:
+          oneOf:
+            - $ref: '#/components/schemas/TireSnapshot'
+            - type: 'null'
+        tire_rear:
+          oneOf:
+            - $ref: '#/components/schemas/TireSnapshot'
+            - type: 'null'
+        rider_feedback:
+          type: ['string', 'null']
+        voice_note_url:
+          type: ['string', 'null']
+          format: uri
+
+    UpdateSessionRequest:
+      type: object
+      properties:
+        session_type:
+          type: string
+          enum: [practice, qualifying, race, trackday]
+        manual_best_lap_ms:
+          type: ['integer', 'null']
+        tire_front:
+          oneOf:
+            - $ref: '#/components/schemas/TireSnapshot'
+            - type: 'null'
+        tire_rear:
+          oneOf:
+            - $ref: '#/components/schemas/TireSnapshot'
+            - type: 'null'
+        rider_feedback:
+          type: ['string', 'null']
+        voice_note_url:
+          type: ['string', 'null']
+          format: uri
+
+    SetupSnapshot:
+      type: object
+      required: [id, session_id, settings, created_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        session_id:
+          $ref: '#/components/schemas/Uuid'
+        settings:
+          $ref: '#/components/schemas/SuspensionSpec'
+        created_at:
+          $ref: '#/components/schemas/DateTime'
+
+    CreateSnapshotRequest:
+      type: object
+      required: [settings]
+      properties:
+        settings:
+          $ref: '#/components/schemas/SuspensionSpec'
+
+    ChangeLog:
+      type: object
+      required: [id, session_id, parameter, to_value, applied_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        session_id:
+          $ref: '#/components/schemas/Uuid'
+        parameter:
+          type: string
+          description: Setting name (e.g. 'front.compression', 'rear.rebound')
+        from_value:
+          type: ['string', 'null']
+        to_value:
+          type: string
+        rationale:
+          type: ['string', 'null']
+        applied_at:
+          $ref: '#/components/schemas/DateTime'
+
+    CreateChangeRequest:
+      type: object
+      required: [parameter, to_value]
+      properties:
+        parameter:
+          type: string
+        from_value:
+          type: ['string', 'null']
+        to_value:
+          type: string
+        rationale:
+          type: ['string', 'null']
+        applied_at:
+          $ref: '#/components/schemas/DateTime'
+
+    # ── Progress schemas ──
+    ProgressOverview:
+      type: object
+      properties:
+        lap_time_trend:
+          type: array
+          description: Lap times over time for trend analysis
+          items:
+            type: object
+            properties:
+              session_id:
+                $ref: '#/components/schemas/Uuid'
+              date:
+                $ref: '#/components/schemas/Date'
+              track_name:
+                type: string
+              best_lap_ms:
+                type: ['integer', 'null']
+        best_laps_by_track:
+          type: array
+          description: Best lap time per track
+          items:
+            type: object
+            properties:
+              track_id:
+                $ref: '#/components/schemas/Uuid'
+              track_name:
+                type: string
+              best_lap_ms:
+                type: integer
+              session_id:
+                $ref: '#/components/schemas/Uuid'
+              date:
+                $ref: '#/components/schemas/Date'
+        total_time_found_ms:
+          type: integer
+          description: Total cumulative lap time improvement across all sessions
+
+    EfficacyOverview:
+      type: object
+      properties:
+        total_suggestions:
+          type: integer
+        adoption_rate:
+          type: number
+          description: Fraction of suggestion changes that were applied or applied_modified
+        avg_delta_by_status:
+          type: object
+          properties:
+            applied:
+              type: ['number', 'null']
+              description: Average lap delta in ms for fully applied changes
+            applied_modified:
+              type: ['number', 'null']
+              description: Average lap delta in ms for modified applied changes
+            skipped:
+              type: ['number', 'null']
+              description: Average lap delta in ms when suggestion was skipped
+
+    SessionHistory:
+      type: object
+      required: [sessions]
+      properties:
+        sessions:
+          type: array
+          items:
+            type: object
+            properties:
+              session_id:
+                $ref: '#/components/schemas/Uuid'
+              event_id:
+                $ref: '#/components/schemas/Uuid'
+              date:
+                $ref: '#/components/schemas/Date'
+              track_name:
+                type: string
+              session_type:
+                type: string
+                enum: [practice, qualifying, race, trackday]
+              best_lap_ms:
+                type: ['integer', 'null']
+              delta_from_previous_ms:
+                type: ['integer', 'null']
+                description: Change from previous session at same track (negative = improvement)
+
+    # ── Channel alias schemas ──
+    ChannelAlias:
+      type: object
+      required: [id, raw_name, canonical_name, created_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        raw_name:
+          type: string
+          description: Original channel name from the logger
+        canonical_name:
+          type: string
+          description: Standardised channel name used by Dialed
+        logger_model:
+          type: ['string', 'null']
+          description: Logger model this alias applies to (null = all loggers)
+        created_at:
+          $ref: '#/components/schemas/DateTime'
+
+    CreateChannelAliasRequest:
+      type: object
+      required: [raw_name, canonical_name]
+      properties:
+        raw_name:
+          type: string
+        canonical_name:
+          type: string
+        logger_model:
+          type: ['string', 'null']
+
+    UpdateChannelAliasRequest:
+      type: object
+      properties:
+        raw_name:
+          type: string
+        canonical_name:
+          type: string
+        logger_model:
+          type: ['string', 'null']
+
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Field 'category' must be one of: oil_change, coolant, ..."
+            code: VALIDATION_ERROR
+            request_id: 550e8400-e29b-41d4-a716-446655440000
+
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Missing or expired authentication token"
+            code: UNAUTHORIZED
+            request_id: 550e8400-e29b-41d4-a716-446655440000
+
+    Forbidden:
+      description: Authenticated but not authorized for this resource
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "You do not have access to this resource"
+            code: FORBIDDEN
+            request_id: 550e8400-e29b-41d4-a716-446655440000
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Bike not found"
+            code: NOT_FOUND
+            request_id: 550e8400-e29b-41d4-a716-446655440000
+
+    UnprocessableEntity:
+      description: Request body is syntactically valid but semantically incorrect
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "suspension_spec.schema_version must be 1"
+            code: VALIDATION_ERROR
+            request_id: 550e8400-e29b-41d4-a716-446655440000
+
+    InternalError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "An unexpected error occurred"
+            code: INTERNAL_ERROR
+            request_id: 550e8400-e29b-41d4-a716-446655440000
+
+security:
+  - InternalToken: []
+
+paths:
+  # ═══════════════════════ AUTH ═══════════════════════
+  /auth/register:
+    post:
+      operationId: registerUser
+      tags: [Auth]
+      summary: Register a new user account
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Account created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/login:
+    post:
+      operationId: loginUser
+      tags: [Auth]
+      summary: Authenticate with email and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/refresh:
+    post:
+      operationId: refreshToken
+      tags: [Auth]
+      summary: Obtain a new access token using a refresh token
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefreshResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/me:
+    get:
+      operationId: getProfile
+      tags: [Auth]
+      summary: Get the authenticated user's profile
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      operationId: updateProfile
+      tags: [Auth]
+      summary: Update the authenticated user's profile fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ═══════════════════════ API KEYS ═══════════════════════
+  /auth/me/api-keys:
+    get:
+      operationId: listApiKeys
+      tags: [API Keys]
+      summary: List all API keys for the authenticated user
+      responses:
+        '200':
+          description: List of API keys (key_hash and raw key are never returned in list)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ApiKeySummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      operationId: createApiKey
+      tags: [API Keys]
+      summary: Create a new named API key
+      description: The raw key is returned only in this response and cannot be retrieved again.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApiKeyCreateRequest'
+      responses:
+        '201':
+          description: API key created — raw key included in response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiKeyCreateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /auth/me/api-keys/{key_id}:
+    parameters:
+      - name: key_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+        description: API key ID
+    delete:
+      operationId: deleteApiKey
+      tags: [API Keys]
+      summary: Revoke and delete an API key
+      responses:
+        '204':
+          description: API key deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ═══════════════════════ BIKES ═══════════════════════
+  /garage/bikes:
+    get:
+      operationId: listBikes
+      tags: [Bikes]
+      summary: List the authenticated user's bikes (excludes soft-deleted)
+      responses:
+        '200':
+          description: List of bikes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Bike'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: createBike
+      tags: [Bikes]
+      summary: Add a new bike to the garage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateBikeRequest'
+      responses:
+        '201':
+          description: Bike created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bike'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /garage/bikes/{bike_id}:
+    parameters:
+      - name: bike_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+        description: Bike ID
+    get:
+      operationId: getBike
+      tags: [Bikes]
+      summary: Get bike detail with suspension spec and summary stats
+      responses:
+        '200':
+          description: Bike detail with stats
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BikeDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      operationId: updateBike
+      tags: [Bikes]
+      summary: Update bike fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBikeRequest'
+      responses:
+        '200':
+          description: Bike updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Bike'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: deleteBike
+      tags: [Bikes]
+      summary: Soft-delete a bike (sets deleted_at timestamp)
+      responses:
+        '204':
+          description: Bike soft-deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ═══════════════════════ MAINTENANCE ═══════════════════════
+  /garage/bikes/{bike_id}/maintenance:
+    parameters:
+      - name: bike_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+    get:
+      operationId: listMaintenanceLogs
+      tags: [Maintenance]
+      summary: List maintenance logs for a bike
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [oil_change, coolant, brake_fluid, chain, air_filter, spark_plugs, valve_check, brake_pads, battery, general_service, other]
+          description: Filter by maintenance category
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Start of date range filter (inclusive)
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: End of date range filter (inclusive)
+      responses:
+        '200':
+          description: List of maintenance log entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MaintenanceLog'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: createMaintenanceLog
+      tags: [Maintenance]
+      summary: Log a maintenance entry for a bike
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMaintenanceRequest'
+      responses:
+        '201':
+          description: Maintenance entry created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceLog'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /garage/bikes/{bike_id}/maintenance/upcoming:
+    parameters:
+      - name: bike_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+    get:
+      operationId: getUpcomingMaintenance
+      tags: [Maintenance]
+      summary: Get next-due maintenance items by km or date
+      responses:
+        '200':
+          description: Upcoming maintenance items
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpcomingMaintenance'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /garage/bikes/{bike_id}/maintenance/{maintenance_id}:
+    parameters:
+      - name: bike_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+      - name: maintenance_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+    get:
+      operationId: getMaintenanceLog
+      tags: [Maintenance]
+      summary: Get a specific maintenance log entry
+      responses:
+        '200':
+          description: Maintenance log detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceLog'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      operationId: updateMaintenanceLog
+      tags: [Maintenance]
+      summary: Update a maintenance log entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMaintenanceRequest'
+      responses:
+        '200':
+          description: Maintenance entry updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MaintenanceLog'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: deleteMaintenanceLog
+      tags: [Maintenance]
+      summary: Delete a maintenance log entry
+      responses:
+        '204':
+          description: Maintenance entry deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ═══════════════════════ TIRE PRESSURE ═══════════════════════
+  /garage/bikes/{bike_id}/tire-pressure:
+    parameters:
+      - name: bike_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+    get:
+      operationId: listTirePressureLogs
+      tags: [Tire Pressure]
+      summary: List tire pressure readings for a bike
+      parameters:
+        - name: context
+          in: query
+          schema:
+            type: string
+            enum: [cold, pre_ride, post_ride, pit_stop, pre_session, post_session]
+          description: Filter by reading context
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: Start of date range filter (inclusive)
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+          description: End of date range filter (inclusive)
+      responses:
+        '200':
+          description: List of tire pressure readings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TirePressureLog'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: createTirePressureLog
+      tags: [Tire Pressure]
+      summary: Log a tire pressure reading
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTirePressureRequest'
+      responses:
+        '201':
+          description: Tire pressure reading created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TirePressureLog'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /garage/bikes/{bike_id}/tire-pressure/{reading_id}:
+    parameters:
+      - name: bike_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+      - name: reading_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+    get:
+      operationId: getTirePressureLog
+      tags: [Tire Pressure]
+      summary: Get a specific tire pressure reading
+      responses:
+        '200':
+          description: Tire pressure reading detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TirePressureLog'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: deleteTirePressureLog
+      tags: [Tire Pressure]
+      summary: Delete a tire pressure reading
+      responses:
+        '204':
+          description: Reading deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ═══════════════════════ MODIFICATIONS ═══════════════════════
+  /garage/bikes/{bike_id}/mods:
+    parameters:
+      - name: bike_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+    get:
+      operationId: listModifications
+      tags: [Modifications]
+      summary: List modifications for a bike
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [exhaust, ecu, suspension, brakes, wheels_tires, bodywork, controls, lighting, engine, drivetrain, electronics, ergonomics, other]
+          description: Filter by modification category
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, removed]
+          description: "Filter by current state: 'active' = removed_at is null, 'removed' = removed_at is set"
+      responses:
+        '200':
+          description: List of modifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Modification'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: createModification
+      tags: [Modifications]
+      summary: Log a new modification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateModificationRequest'
+      responses:
+        '201':
+          description: Modification created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Modification'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /garage/bikes/{bike_id}/mods/{mod_id}:
+    parameters:
+      - name: bike_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+      - name: mod_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+    get:
+      operationId: getModification
+      tags: [Modifications]
+      summary: Get a specific modification
+      responses:
+        '200':
+          description: Modification detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Modification'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      operationId: updateModification
+      tags: [Modifications]
+      summary: Update a modification (e.g. set removed_at)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateModificationRequest'
+      responses:
+        '200':
+          description: Modification updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Modification'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: deleteModification
+      tags: [Modifications]
+      summary: Delete a modification record
+      responses:
+        '204':
+          description: Modification deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ═══════════════════════ OWNERSHIP ═══════════════════════
+  /garage/bikes/{bike_id}/ownership:
+    parameters:
+      - name: bike_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+    get:
+      operationId: listOwnershipHistory
+      tags: [Ownership]
+      summary: Get ownership timeline for a bike
+      responses:
+        '200':
+          description: Ownership timeline (ordered by date descending)
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OwnershipHistory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: createOwnershipEvent
+      tags: [Ownership]
+      summary: Log an ownership event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOwnershipRequest'
+      responses:
+        '201':
+          description: Ownership event created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OwnershipHistory'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /garage/bikes/{bike_id}/ownership/{ownership_id}:
+    parameters:
+      - name: bike_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+      - name: ownership_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+    delete:
+      operationId: deleteOwnershipEvent
+      tags: [Ownership]
+      summary: Delete an ownership event
+      responses:
+        '204':
+          description: Ownership event deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ═══════════════════════ TRACKS ═══════════════════════
+  /garage/tracks:
+    get:
+      operationId: listTracks
+      tags: [Tracks]
+      summary: List all tracks
+      responses:
+        '200':
+          description: List of tracks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Track'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: createTrack
+      tags: [Tracks]
+      summary: Create a new track
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTrackRequest'
+      responses:
+        '201':
+          description: Track created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Track'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /garage/tracks/{track_id}:
+    parameters:
+      - name: track_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+    get:
+      operationId: getTrack
+      tags: [Tracks]
+      summary: Get track detail
+      responses:
+        '200':
+          description: Track detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Track'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      operationId: updateTrack
+      tags: [Tracks]
+      summary: Update track fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTrackRequest'
+      responses:
+        '200':
+          description: Track updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Track'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: deleteTrack
+      tags: [Tracks]
+      summary: Delete a track
+      responses:
+        '204':
+          description: Track deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ═══════════════════════ EVENTS ═══════════════════════
+  /garage/events:
+    get:
+      operationId: listEvents
+      tags: [Events]
+      summary: List track day events
+      parameters:
+        - name: bike_id
+          in: query
+          schema:
+            $ref: '#/components/schemas/Uuid'
+          description: Filter by bike
+        - name: track_id
+          in: query
+          schema:
+            $ref: '#/components/schemas/Uuid'
+          description: Filter by track
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Start of date range (inclusive)
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: End of date range (inclusive)
+      responses:
+        '200':
+          description: List of events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Event'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: createEvent
+      tags: [Events]
+      summary: Create a new track day event
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateEventRequest'
+      responses:
+        '201':
+          description: Event created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /garage/events/{event_id}:
+    parameters:
+      - name: event_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+    get:
+      operationId: getEvent
+      tags: [Events]
+      summary: Get event detail
+      responses:
+        '200':
+          description: Event detail
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      operationId: updateEvent
+      tags: [Events]
+      summary: Update event fields (including conditions)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateEventRequest'
+      responses:
+        '200':
+          description: Event updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Event'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: deleteEvent
+      tags: [Events]
+      summary: Delete an event
+      responses:
+        '204':
+          description: Event deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ═══════════════════════ SESSIONS ═══════════════════════
+  /sessions:
+    get:
+      operationId: listSessions
+      tags: [Sessions]
+      summary: List sessions
+      parameters:
+        - name: event_id
+          in: query
+          schema:
+            $ref: '#/components/schemas/Uuid'
+          description: Filter by event
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Start of date range (inclusive, based on event date)
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: End of date range (inclusive, based on event date)
+      responses:
+        '200':
+          description: List of sessions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Session'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: createSession
+      tags: [Sessions]
+      summary: Create a new session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionRequest'
+      responses:
+        '201':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /sessions/{session_id}:
+    parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+    get:
+      operationId: getSession
+      tags: [Sessions]
+      summary: Get full session detail (includes snapshots and change log)
+      responses:
+        '200':
+          description: Session detail with embedded snapshots and changes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionDetail'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    patch:
+      operationId: updateSession
+      tags: [Sessions]
+      summary: Update session fields
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSessionRequest'
+      responses:
+        '200':
+          description: Session updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /sessions/{session_id}/snapshot:
+    parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+    post:
+      operationId: createSetupSnapshot
+      tags: [Sessions]
+      summary: Append a setup snapshot to a session (append-only)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSnapshotRequest'
+      responses:
+        '201':
+          description: Snapshot created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SetupSnapshot'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /sessions/{session_id}/changes:
+    parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+    get:
+      operationId: listChanges
+      tags: [Sessions]
+      summary: Get full change log for a session
+      responses:
+        '200':
+          description: Change log entries ordered by applied_at
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChangeLog'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: createChange
+      tags: [Sessions]
+      summary: Log a setting change for a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChangeRequest'
+      responses:
+        '201':
+          description: Change logged
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChangeLog'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ═══════════════════════ PROGRESS ═══════════════════════
+  /progress:
+    get:
+      operationId: getProgressOverview
+      tags: [Progress]
+      summary: Lap time trends, best laps per track, total time found
+      responses:
+        '200':
+          description: Progress overview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProgressOverview'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /progress/efficacy:
+    get:
+      operationId: getEfficacy
+      tags: [Progress]
+      summary: Suggestion adoption rate and average delta by applied_status
+      responses:
+        '200':
+          description: Efficacy overview
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EfficacyOverview'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /progress/sessions:
+    get:
+      operationId: getSessionHistory
+      tags: [Progress]
+      summary: Session history with time deltas between sessions at the same track
+      responses:
+        '200':
+          description: Session history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionHistory'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ═══════════════════════ ADMIN ═══════════════════════
+  /admin/channel-aliases:
+    get:
+      operationId: listChannelAliases
+      tags: [Admin]
+      summary: List all channel name aliases
+      responses:
+        '200':
+          description: List of channel aliases
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChannelAlias'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      operationId: createChannelAlias
+      tags: [Admin]
+      summary: Add a new channel alias mapping
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateChannelAliasRequest'
+      responses:
+        '201':
+          description: Alias created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelAlias'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /admin/channel-aliases/{alias_id}:
+    parameters:
+      - name: alias_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+    patch:
+      operationId: updateChannelAlias
+      tags: [Admin]
+      summary: Update a channel alias
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateChannelAliasRequest'
+      responses:
+        '200':
+          description: Alias updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelAlias'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      operationId: deleteChannelAlias
+      tags: [Admin]
+      summary: Remove a channel alias
+      responses:
+        '204':
+          description: Alias deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'

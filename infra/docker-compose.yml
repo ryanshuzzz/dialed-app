@@ -1,0 +1,179 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Dialed App — Docker Compose (production-like)
+# ─────────────────────────────────────────────────────────────────────────────
+# Run from the repo root:  docker compose up
+# Or with build:            docker compose up --build
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ═══════════════════════ DATASTORES ═══════════════════════
+
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: dialed
+    ports: ["5432:5432"]
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    mem_limit: 512m
+
+  timescale:
+    image: timescale/timescaledb:latest-pg16
+    environment:
+      POSTGRES_PASSWORD: devpassword
+      POSTGRES_DB: dialed_telemetry
+    ports: ["5433:5432"]
+    volumes: ["tsdata:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    mem_limit: 512m
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    ports: ["6379:6379"]
+    volumes: ["redisdata:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    mem_limit: 128m
+
+  # ═══════════════════════ GATEWAY ═══════════════════════
+
+  gateway:
+    build:
+      context: ..
+      dockerfile: services/gateway/Dockerfile
+    ports: ["8000:8000"]
+    depends_on:
+      core-api:
+        condition: service_healthy
+      telemetry-ingestion:
+        condition: service_healthy
+      ai:
+        condition: service_healthy
+    environment:
+      CORE_API_URL: http://core-api:8001
+      TELEMETRY_URL: http://telemetry-ingestion:8002
+      AI_URL: http://ai:8003
+      REDIS_URL: redis://redis:6379
+      INTERNAL_SECRET: dev-internal-secret
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    mem_limit: 256m
+
+  # ═══════════════════════ BACKEND SERVICES ═══════════════════════
+
+  core-api:
+    build:
+      context: ..
+      dockerfile: services/core-api/Dockerfile
+    ports: ["8001:8001"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:devpassword@postgres/dialed
+      REDIS_URL: redis://redis:6379
+      INTERNAL_SECRET: dev-internal-secret
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    mem_limit: 512m
+
+  telemetry-ingestion:
+    build:
+      context: ..
+      dockerfile: services/telemetry-ingestion/Dockerfile
+    ports: ["8002:8002"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      timescale:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:devpassword@postgres/dialed
+      TIMESCALE_URL: postgresql+asyncpg://postgres:devpassword@timescale/dialed_telemetry
+      REDIS_URL: redis://redis:6379
+      CORE_API_URL: http://core-api:8001
+      INTERNAL_SECRET: dev-internal-secret
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    mem_limit: 512m
+
+  ai:
+    build:
+      context: ..
+      dockerfile: services/ai/Dockerfile
+    ports: ["8003:8003"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:devpassword@postgres/dialed
+      REDIS_URL: redis://redis:6379
+      CORE_API_URL: http://core-api:8001
+      TELEMETRY_URL: http://telemetry-ingestion:8002
+      INTERNAL_SECRET: dev-internal-secret
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8003/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    mem_limit: 1g
+
+  # ═══════════════════════ FRONTEND ═══════════════════════
+
+  frontend:
+    build:
+      context: ../frontend
+    ports: ["5173:5173"]
+    depends_on:
+      gateway:
+        condition: service_healthy
+    environment:
+      VITE_GATEWAY_URL: http://localhost:8000
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5173/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+    mem_limit: 256m
+
+volumes:
+  pgdata:
+  tsdata:
+  redisdata:

@@ -1,0 +1,56 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Dialed App — Docker Compose dev overrides
+# ─────────────────────────────────────────────────────────────────────────────
+# Usage from repo root:
+#   docker compose -f infra/docker-compose.yml -f infra/docker-compose.dev.yml up
+#
+# Or via the root docker-compose.yml which includes both automatically.
+#
+# Adds:
+#   - Volume mounts for live code reload (source + shared package)
+#   - PYTHONDONTWRITEBYTECODE=1 (no .pyc files in mounted volumes)
+#   - uvicorn --reload for automatic restart on code changes
+# ─────────────────────────────────────────────────────────────────────────────
+
+services:
+  gateway:
+    volumes:
+      - ../services/gateway:/app
+      - ../shared:/shared
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONPATH: /shared
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  core-api:
+    volumes:
+      - ../services/core-api:/app
+      - ../shared:/shared
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONPATH: /shared
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001", "--reload"]
+
+  telemetry-ingestion:
+    volumes:
+      - ../services/telemetry-ingestion:/app
+      - ../shared:/shared
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONPATH: /shared
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8002", "--reload"]
+
+  ai:
+    volumes:
+      - ../services/ai:/app
+      - ../shared:/shared
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+      PYTHONPATH: /shared
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8003", "--reload"]
+
+  frontend:
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules
+    command: ["npm", "run", "dev", "--", "--host", "0.0.0.0"]

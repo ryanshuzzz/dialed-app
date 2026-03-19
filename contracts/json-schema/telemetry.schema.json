@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dialed.app/schemas/telemetry.schema.json",
+  "title": "Telemetry schemas",
+  "description": "Telemetry data points, lap segments, and ingestion job data shapes for the Dialed telemetry/ingestion service",
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "A UUID v4 identifier"
+    },
+    "dateTime": {
+      "type": "string",
+      "format": "date-time",
+      "description": "An ISO 8601 date-time string with timezone (e.g. 2026-03-18T12:00:00Z)"
+    },
+    "TelemetryPoint": {
+      "type": "object",
+      "description": "A single 20Hz telemetry sample from an AiM or compatible data logger. Uses a hybrid wide table — the 13 core channels are real columns; additional logger channels overflow into extra_channels JSONB. Stored in a TimescaleDB hypertable partitioned by time.",
+      "required": ["time", "session_id"],
+      "properties": {
+        "time": {
+          "$ref": "#/$defs/dateTime",
+          "description": "Exact timestamp of this telemetry sample. Serves as the TimescaleDB hypertable partition key."
+        },
+        "session_id": {
+          "$ref": "#/$defs/uuid",
+          "description": "ID of the core.sessions session this data point belongs to"
+        },
+        "gps_speed": {
+          "type": ["number", "null"],
+          "description": "GPS-derived speed in km/h"
+        },
+        "throttle_pos": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Throttle position as a percentage (0 = closed, 100 = wide open)"
+        },
+        "rpm": {
+          "type": ["number", "null"],
+          "description": "Engine RPM"
+        },
+        "gear": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "Current gear (0 = neutral)"
+        },
+        "lean_angle": {
+          "type": ["number", "null"],
+          "description": "Lean angle in degrees from vertical. Negative = left, positive = right."
+        },
+        "front_brake_psi": {
+          "type": ["number", "null"],
+          "description": "Front brake line pressure in PSI"
+        },
+        "rear_brake_psi": {
+          "type": ["number", "null"],
+          "description": "Rear brake line pressure in PSI"
+        },
+        "fork_position": {
+          "type": ["number", "null"],
+          "description": "Front fork position in mm (0 = fully extended)"
+        },
+        "shock_position": {
+          "type": ["number", "null"],
+          "description": "Rear shock position in mm (0 = fully extended)"
+        },
+        "coolant_temp": {
+          "type": ["number", "null"],
+          "description": "Engine coolant temperature in Celsius"
+        },
+        "oil_temp": {
+          "type": ["number", "null"],
+          "description": "Engine oil temperature in Celsius"
+        },
+        "lat": {
+          "type": ["number", "null"],
+          "minimum": -90,
+          "maximum": 90,
+          "description": "GPS latitude in decimal degrees"
+        },
+        "lon": {
+          "type": ["number", "null"],
+          "minimum": -180,
+          "maximum": 180,
+          "description": "GPS longitude in decimal degrees"
+        },
+        "extra_channels": {
+          "type": "object",
+          "description": "Additional logger channels not in the 13 core columns (e.g. TCS intervention level, wheelie sensor, secondary lambda). Keys are canonical channel names after alias resolution.",
+          "additionalProperties": {
+            "type": ["number", "null"]
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "LapSegment": {
+      "type": "object",
+      "description": "Computed lap boundary data for one lap within a session. Created by the ingestion pipeline from beacon or GPS data. The combination of session_id + lap_number is unique.",
+      "required": ["id", "session_id", "lap_number", "start_time_ms", "end_time_ms", "lap_time_ms", "created_at"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid",
+          "description": "Unique lap segment identifier"
+        },
+        "session_id": {
+          "$ref": "#/$defs/uuid",
+          "description": "ID of the session this lap belongs to"
+        },
+        "lap_number": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Sequential lap number within the session, starting at 1"
+        },
+        "start_time_ms": {
+          "type": "integer",
+          "description": "Lap start offset in milliseconds from the beginning of the session file"
+        },
+        "end_time_ms": {
+          "type": "integer",
+          "description": "Lap end offset in milliseconds from the beginning of the session file"
+        },
+        "lap_time_ms": {
+          "type": "integer",
+          "description": "Total lap duration in milliseconds (end_time_ms - start_time_ms)"
+        },
+        "beacon_start_s": {
+          "type": ["number", "null"],
+          "description": "Start beacon trigger time in seconds from file start. Null if lap was computed from GPS rather than a physical beacon."
+        },
+        "beacon_end_s": {
+          "type": ["number", "null"],
+          "description": "End beacon trigger time in seconds from file start. Null if lap was computed from GPS rather than a physical beacon."
+        },
+        "created_at": {
+          "$ref": "#/$defs/dateTime",
+          "description": "Timestamp when this lap segment was computed and stored"
+        }
+      },
+      "additionalProperties": false
+    },
+    "IngestionJob": {
+      "type": "object",
+      "description": "Tracks the state of an async data ingestion job (CSV, OCR, or voice). Created when a file is uploaded, updated as the worker processes it, and polled or streamed via SSE by the client.",
+      "required": ["id", "session_id", "source", "status", "created_at"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid",
+          "description": "Unique ingestion job identifier, also used to construct the SSE stream URL"
+        },
+        "session_id": {
+          "$ref": "#/$defs/uuid",
+          "description": "ID of the core.sessions session this ingestion job populates"
+        },
+        "source": {
+          "type": "string",
+          "enum": ["csv", "ocr", "voice"],
+          "description": "The ingestion pipeline that will process this job. csv = AiM or compatible logger file; ocr = photo of a paper setup sheet; voice = audio note."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "processing", "complete", "failed"],
+          "description": "Current job state. 'pending' = queued in Redis; 'processing' = worker is active; 'complete' = data written; 'failed' = unrecoverable error."
+        },
+        "result": {
+          "type": ["object", "null"],
+          "description": "Parsed output data once the job is complete. Shape varies by source: CSV jobs produce lap segments + channel summary; OCR/voice jobs produce extracted setup values pending user confirmation.",
+          "additionalProperties": true
+        },
+        "error_message": {
+          "type": ["string", "null"],
+          "description": "Human-readable error description if status is 'failed'"
+        },
+        "confidence": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Confidence score (0–1) for OCR and voice extraction results. Null for CSV jobs. Low confidence results are flagged for user review."
+        },
+        "created_at": {
+          "$ref": "#/$defs/dateTime",
+          "description": "Timestamp when this job was created (file uploaded)"
+        },
+        "completed_at": {
+          "oneOf": [
+            { "$ref": "#/$defs/dateTime" },
+            { "type": "null" }
+          ],
+          "description": "Timestamp when this job reached 'complete' or 'failed' status"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

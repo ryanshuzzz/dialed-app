@@ -1,0 +1,12 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Root docker-compose.yml — convenience wrapper
+# ─────────────────────────────────────────────────────────────────────────────
+# Extends the canonical config from infra/ so that `docker compose up` works
+# from the repo root without specifying -f flags.
+#
+# Production-like:  docker compose up
+# Dev with reload:  docker compose -f docker-compose.yml -f infra/docker-compose.dev.yml up
+# ─────────────────────────────────────────────────────────────────────────────
+
+include:
+  - infra/docker-compose.yml

@@ -1,0 +1,776 @@
+openapi: 3.1.0
+info:
+  title: Dialed Telemetry & Ingestion API
+  description: |
+    Telemetry and ingestion service for the Dialed motorcycle tuning platform.
+    Handles data pipelines (CSV parsing, OCR extraction, voice transcription),
+    owns telemetry storage in TimescaleDB, and provides channel data retrieval
+    with downsampling and analysis endpoints. Async jobs notify clients via SSE.
+  version: 1.0.0
+  contact:
+    name: Dialed Team
+
+servers:
+  - url: http://localhost:8002
+    description: Local development (direct)
+  - url: http://localhost:8000/api/v1
+    description: Local development (via gateway)
+
+tags:
+  - name: Ingestion
+    description: Async file ingestion (CSV, OCR, voice) with SSE job completion
+  - name: Telemetry
+    description: Telemetry data upload, channel queries, and computed analysis
+
+components:
+  securitySchemes:
+    InternalToken:
+      type: apiKey
+      in: header
+      name: X-Internal-Token
+      description: Internal JWT signed by the gateway after validating the Supabase JWT
+
+  schemas:
+    # ── Shared primitives ──
+    Uuid:
+      type: string
+      format: uuid
+      description: A UUID v4 identifier
+
+    DateTime:
+      type: string
+      format: date-time
+      description: ISO 8601 date-time with timezone
+
+    # ── Error envelope ──
+    ErrorResponse:
+      type: object
+      required: [error, code, request_id]
+      properties:
+        error:
+          type: string
+          description: Human-readable error message
+        code:
+          type: string
+          enum:
+            - VALIDATION_ERROR
+            - NOT_FOUND
+            - UNAUTHORIZED
+            - FORBIDDEN
+            - RATE_LIMITED
+            - INTERNAL_ERROR
+            - SERVICE_UNAVAILABLE
+          description: Machine-readable error code
+        request_id:
+          type: string
+          format: uuid
+          description: Request ID from X-Request-ID header
+
+    # ── Ingestion schemas ──
+    IngestionJobCreated:
+      type: object
+      required: [job_id]
+      properties:
+        job_id:
+          $ref: '#/components/schemas/Uuid'
+          description: ID of the created ingestion job — use for polling or SSE streaming
+
+    IngestionJob:
+      type: object
+      required: [id, session_id, source, status, created_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        session_id:
+          $ref: '#/components/schemas/Uuid'
+        source:
+          type: string
+          enum: [csv, ocr, voice]
+          description: Ingestion pipeline type
+        status:
+          type: string
+          enum: [pending, processing, complete, failed]
+          description: Current job state
+        result:
+          type: ['object', 'null']
+          description: Parsed output data once job is complete. Shape varies by source.
+          additionalProperties: true
+        error_message:
+          type: ['string', 'null']
+          description: Error description if status is 'failed'
+        confidence:
+          type: ['number', 'null']
+          minimum: 0
+          maximum: 1
+          description: OCR/voice confidence score (0–1). Null for CSV jobs.
+        created_at:
+          $ref: '#/components/schemas/DateTime'
+        completed_at:
+          type: ['string', 'null']
+          format: date-time
+
+    ConfirmRequest:
+      type: object
+      description: User confirmation of extracted data from OCR or voice ingestion
+      properties:
+        confirmed:
+          type: boolean
+          description: Whether the user accepts the extracted values
+        corrections:
+          type: ['object', 'null']
+          description: Optional corrected values if the user adjusted the extraction result
+          additionalProperties: true
+
+    ConfirmResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [confirmed, corrected]
+        session_id:
+          $ref: '#/components/schemas/Uuid'
+
+    # ── Telemetry schemas ──
+    TelemetryUploadRequest:
+      type: object
+      required: [session_id, points]
+      properties:
+        session_id:
+          $ref: '#/components/schemas/Uuid'
+        points:
+          type: array
+          description: Array of telemetry data points to bulk insert
+          items:
+            $ref: '#/components/schemas/TelemetryPoint'
+
+    TelemetryPoint:
+      type: object
+      required: [time, session_id]
+      properties:
+        time:
+          $ref: '#/components/schemas/DateTime'
+          description: Sample timestamp (TimescaleDB partition key)
+        session_id:
+          $ref: '#/components/schemas/Uuid'
+        gps_speed:
+          type: ['number', 'null']
+          description: GPS speed in km/h
+        throttle_pos:
+          type: ['number', 'null']
+          minimum: 0
+          maximum: 100
+          description: Throttle position 0–100%
+        rpm:
+          type: ['number', 'null']
+          description: Engine RPM
+        gear:
+          type: ['integer', 'null']
+          minimum: 0
+          description: Current gear (0 = neutral)
+        lean_angle:
+          type: ['number', 'null']
+          description: Lean angle in degrees (negative = left)
+        front_brake_psi:
+          type: ['number', 'null']
+          description: Front brake pressure in PSI
+        rear_brake_psi:
+          type: ['number', 'null']
+          description: Rear brake pressure in PSI
+        fork_position:
+          type: ['number', 'null']
+          description: Fork position in mm from full extension
+        shock_position:
+          type: ['number', 'null']
+          description: Shock position in mm from full extension
+        coolant_temp:
+          type: ['number', 'null']
+          description: Coolant temperature in Celsius
+        oil_temp:
+          type: ['number', 'null']
+          description: Oil temperature in Celsius
+        lat:
+          type: ['number', 'null']
+          minimum: -90
+          maximum: 90
+          description: GPS latitude
+        lon:
+          type: ['number', 'null']
+          minimum: -180
+          maximum: 180
+          description: GPS longitude
+        extra_channels:
+          type: object
+          description: Additional channels keyed by canonical name
+          additionalProperties:
+            type: ['number', 'null']
+
+    TelemetryUploadResponse:
+      type: object
+      required: [inserted_count]
+      properties:
+        inserted_count:
+          type: integer
+          description: Number of telemetry points successfully inserted
+
+    ChannelSummary:
+      type: object
+      required: [channels]
+      properties:
+        channels:
+          type: array
+          description: Available channels with value ranges
+          items:
+            type: object
+            required: [name, min, max, sample_count]
+            properties:
+              name:
+                type: string
+                description: Canonical channel name
+              min:
+                type: ['number', 'null']
+                description: Minimum value recorded
+              max:
+                type: ['number', 'null']
+                description: Maximum value recorded
+              sample_count:
+                type: integer
+                description: Number of non-null samples
+        total_samples:
+          type: integer
+          description: Total number of telemetry points for this session
+        time_range:
+          type: object
+          properties:
+            start:
+              $ref: '#/components/schemas/DateTime'
+            end:
+              $ref: '#/components/schemas/DateTime'
+
+    LapData:
+      type: object
+      required: [session_id, lap_number, points]
+      properties:
+        session_id:
+          $ref: '#/components/schemas/Uuid'
+        lap_number:
+          type: integer
+          minimum: 1
+        lap_time_ms:
+          type: integer
+          description: Lap duration in milliseconds
+        sample_rate_hz:
+          type: number
+          description: Effective sample rate (may differ from native 20Hz if downsampled)
+        points:
+          type: array
+          description: Channel data points for the requested lap
+          items:
+            $ref: '#/components/schemas/TelemetryPoint'
+
+    LapSegment:
+      type: object
+      required: [id, session_id, lap_number, start_time_ms, end_time_ms, lap_time_ms, created_at]
+      properties:
+        id:
+          $ref: '#/components/schemas/Uuid'
+        session_id:
+          $ref: '#/components/schemas/Uuid'
+        lap_number:
+          type: integer
+          minimum: 1
+        start_time_ms:
+          type: integer
+        end_time_ms:
+          type: integer
+        lap_time_ms:
+          type: integer
+        beacon_start_s:
+          type: ['number', 'null']
+        beacon_end_s:
+          type: ['number', 'null']
+        created_at:
+          $ref: '#/components/schemas/DateTime'
+
+    SessionAnalysis:
+      type: object
+      required: [session_id]
+      properties:
+        session_id:
+          $ref: '#/components/schemas/Uuid'
+        lap_segments:
+          type: array
+          items:
+            $ref: '#/components/schemas/LapSegment'
+        best_lap:
+          type: object
+          properties:
+            lap_number:
+              type: integer
+            lap_time_ms:
+              type: integer
+        braking_zones:
+          type: array
+          description: Detected braking zones with entry/exit speeds
+          items:
+            type: object
+            properties:
+              zone_id:
+                type: integer
+              entry_speed_kph:
+                type: number
+              exit_speed_kph:
+                type: number
+              max_brake_psi:
+                type: number
+              duration_ms:
+                type: integer
+        fork_rebound:
+          type: object
+          description: Fork rebound analysis summary
+          properties:
+            avg_rebound_rate:
+              type: ['number', 'null']
+              description: Average fork rebound rate in mm/s
+            max_compression_mm:
+              type: ['number', 'null']
+        tcs_events:
+          type: array
+          description: Detected traction control intervention events
+          items:
+            type: object
+            properties:
+              time:
+                $ref: '#/components/schemas/DateTime'
+              lap_number:
+                type: integer
+              duration_ms:
+                type: integer
+              throttle_pos_at_trigger:
+                type: number
+
+  responses:
+    BadRequest:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Missing required field: session_id"
+            code: VALIDATION_ERROR
+            request_id: 550e8400-e29b-41d4-a716-446655440000
+
+    Unauthorized:
+      description: Missing or invalid authentication
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Missing or expired authentication token"
+            code: UNAUTHORIZED
+            request_id: 550e8400-e29b-41d4-a716-446655440000
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "Ingestion job not found"
+            code: NOT_FOUND
+            request_id: 550e8400-e29b-41d4-a716-446655440000
+
+    UnprocessableEntity:
+      description: Request body is syntactically valid but semantically incorrect
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "CSV file contains no recognisable channels"
+            code: VALIDATION_ERROR
+            request_id: 550e8400-e29b-41d4-a716-446655440000
+
+    InternalError:
+      description: Unexpected server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            error: "An unexpected error occurred"
+            code: INTERNAL_ERROR
+            request_id: 550e8400-e29b-41d4-a716-446655440000
+
+security:
+  - InternalToken: []
+
+paths:
+  # ═══════════════════════ INGESTION ═══════════════════════
+  /ingest/csv:
+    post:
+      operationId: ingestCsv
+      tags: [Ingestion]
+      summary: Upload a CSV data logger file for async ingestion
+      description: |
+        Accepts a multipart file upload of an AiM or compatible CSV logger file.
+        Creates an ingestion job, pushes it to the dialed:ingestion Redis queue,
+        and returns the job_id immediately. Use GET /ingest/jobs/{id} to poll
+        or GET /ingest/jobs/{id}/stream for SSE completion notification.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [session_id, file]
+              properties:
+                session_id:
+                  $ref: '#/components/schemas/Uuid'
+                  description: Session to associate this data with
+                file:
+                  type: string
+                  format: binary
+                  description: CSV file from AiM or compatible data logger
+      responses:
+        '202':
+          description: Ingestion job created and queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestionJobCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /ingest/ocr:
+    post:
+      operationId: ingestOcr
+      tags: [Ingestion]
+      summary: Upload a setup sheet photo for OCR extraction
+      description: |
+        Accepts an image of a paper or printed setup sheet. Uses Claude Vision
+        to extract suspension settings. The extracted values require user
+        confirmation via POST /ingest/jobs/{id}/confirm before being applied.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [session_id, file]
+              properties:
+                session_id:
+                  $ref: '#/components/schemas/Uuid'
+                file:
+                  type: string
+                  format: binary
+                  description: Image file (JPEG, PNG, HEIC)
+      responses:
+        '202':
+          description: OCR ingestion job created and queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestionJobCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /ingest/voice:
+    post:
+      operationId: ingestVoice
+      tags: [Ingestion]
+      summary: Upload an audio voice note for transcription
+      description: |
+        Accepts an audio recording (e.g. rider's verbal notes after a session).
+        Uses OpenAI Whisper API for transcription. Extracted setup mentions
+        require user confirmation.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [session_id, file]
+              properties:
+                session_id:
+                  $ref: '#/components/schemas/Uuid'
+                file:
+                  type: string
+                  format: binary
+                  description: Audio file (WAV, MP3, M4A, OGG, WebM)
+      responses:
+        '202':
+          description: Voice ingestion job created and queued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestionJobCreated'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /ingest/jobs/{job_id}:
+    parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+        description: Ingestion job ID
+    get:
+      operationId: getIngestionJob
+      tags: [Ingestion]
+      summary: Get ingestion job status
+      responses:
+        '200':
+          description: Current job state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestionJob'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /ingest/jobs/{job_id}/stream:
+    parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+        description: Ingestion job ID
+    get:
+      operationId: streamIngestionJob
+      tags: [Ingestion]
+      summary: SSE stream for ingestion job completion
+      description: |
+        Opens a Server-Sent Events stream that emits a single `complete` or
+        `failed` event when the job finishes. The event data contains the full
+        IngestionJob object including parsed results. The stream closes
+        automatically after the terminal event.
+
+        If the job has already completed, the event is sent immediately and
+        the stream closes.
+      responses:
+        '200':
+          description: SSE event stream
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: |
+                  SSE events:
+                  - event: status, data: {"status": "processing"}
+                  - event: complete, data: {IngestionJob with result}
+                  - event: failed, data: {IngestionJob with error_message}
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /ingest/jobs/{job_id}/confirm:
+    parameters:
+      - name: job_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+        description: Ingestion job ID
+    post:
+      operationId: confirmIngestionJob
+      tags: [Ingestion]
+      summary: Confirm or correct extracted data from OCR/voice jobs
+      description: |
+        After an OCR or voice job completes, the user reviews the extracted
+        values and either confirms them or provides corrections. This triggers
+        the data to be written to the session's setup snapshot and/or change log.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConfirmRequest'
+      responses:
+        '200':
+          description: Data confirmed and applied
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConfirmResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  # ═══════════════════════ TELEMETRY ═══════════════════════
+  /telemetry/upload:
+    post:
+      operationId: uploadTelemetry
+      tags: [Telemetry]
+      summary: Bulk insert telemetry data points
+      description: |
+        Inserts an array of telemetry points into the TimescaleDB hypertable.
+        Typically called by the CSV ingestion worker after parsing, but can
+        also be used for direct uploads from loggers with API support.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TelemetryUploadRequest'
+      responses:
+        '201':
+          description: Telemetry data inserted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelemetryUploadResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /telemetry/{session_id}/channels:
+    parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+        description: Session ID
+    get:
+      operationId: getChannels
+      tags: [Telemetry]
+      summary: List available channels with value ranges for a session
+      responses:
+        '200':
+          description: Channel summary with min/max values and sample counts
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChannelSummary'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /telemetry/{session_id}/lap/{lap_number}:
+    parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+        description: Session ID
+      - name: lap_number
+        in: path
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+        description: Lap number (1-based)
+    get:
+      operationId: getLapData
+      tags: [Telemetry]
+      summary: Get full channel data for a specific lap
+      description: |
+        Returns all telemetry points for the specified lap. Supports optional
+        downsampling via the `hz` parameter and channel filtering via `channels`.
+      parameters:
+        - name: hz
+          in: query
+          schema:
+            type: number
+            minimum: 1
+            maximum: 20
+          description: |
+            Target sample rate in Hz for downsampling. Native rate is 20Hz.
+            Example: hz=10 returns every other sample, hz=5 returns every 4th.
+        - name: channels
+          in: query
+          schema:
+            type: string
+          description: |
+            Comma-separated list of channel names to include in the response.
+            Omit to return all channels. Example: channels=gps_speed,fork_position,lean_angle
+      responses:
+        '200':
+          description: Lap telemetry data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LapData'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /telemetry/{session_id}/analysis:
+    parameters:
+      - name: session_id
+        in: path
+        required: true
+        schema:
+          $ref: '#/components/schemas/Uuid'
+        description: Session ID
+    get:
+      operationId: getSessionAnalysis
+      tags: [Telemetry]
+      summary: Get computed analysis metrics for a session
+      description: |
+        Returns computed metrics including lap segments, braking zone analysis,
+        fork rebound characteristics, and TCS intervention events. These are
+        computed by the analyser modules after telemetry data is ingested.
+      responses:
+        '200':
+          description: Session analysis with computed metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionAnalysis'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'

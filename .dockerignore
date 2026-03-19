@@ -1,0 +1,35 @@
+# Version control
+.git
+.gitignore
+
+# Python bytecode
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+dist/
+build/
+
+# Node
+node_modules
+
+# Environment / secrets
+.env
+.env.*
+
+# Generated types (rebuilt in CI / on demand)
+contracts/generated/
+
+# IDE / editor
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker build artifacts
+*.log

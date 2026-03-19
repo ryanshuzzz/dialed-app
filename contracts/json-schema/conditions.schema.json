@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dialed.app/schemas/conditions.schema.json",
+  "title": "Conditions schema",
+  "description": "Structured weather and track conditions stored as validated JSONB in core.events.conditions. Enables analytical correlation of lap times with environmental factors.",
+  "$defs": {
+    "Conditions": {
+      "type": "object",
+      "description": "Weather and track surface conditions at the time of a track event. All fields are optional — riders record what they have. The notes field captures anything not covered by structured fields.",
+      "properties": {
+        "temp_c": {
+          "type": ["number", "null"],
+          "description": "Ambient air temperature in Celsius at the time of the event"
+        },
+        "humidity_pct": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Relative humidity as a percentage (0–100)"
+        },
+        "track_temp_c": {
+          "type": ["number", "null"],
+          "description": "Track surface temperature in Celsius. Significantly affects tire grip and optimal tire pressure."
+        },
+        "wind_kph": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "description": "Wind speed in kilometres per hour"
+        },
+        "condition": {
+          "type": ["string", "null"],
+          "enum": ["dry", "damp", "wet", "mixed", null],
+          "description": "Overall track surface condition. 'damp' means drying but not fully dry; 'mixed' means varying conditions across the circuit."
+        },
+        "notes": {
+          "type": ["string", "null"],
+          "description": "Free-text description of conditions not captured by structured fields (e.g. 'Fog in sector 2', 'Strong crosswind on back straight', 'Oil flag at T5')"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

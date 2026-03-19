@@ -1,0 +1,425 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dialed.app/schemas/garage.schema.json",
+  "title": "Garage schemas",
+  "description": "Bike, maintenance logs, tire pressure logs, modifications, and ownership history for the Dialed Garage feature",
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "description": "A UUID v4 identifier"
+    },
+    "dateTime": {
+      "type": "string",
+      "format": "date-time",
+      "description": "An ISO 8601 date-time string with timezone (e.g. 2026-03-18T12:00:00Z)"
+    },
+    "date": {
+      "type": "string",
+      "format": "date",
+      "description": "A calendar date in ISO 8601 format (YYYY-MM-DD)"
+    },
+    "currency": {
+      "type": "string",
+      "description": "ISO 4217 currency code (e.g. USD, EUR, GBP)"
+    },
+    "Bike": {
+      "type": "object",
+      "description": "A motorcycle in a user's garage. The core entity for all Dialed features — maintenance, tires, mods, sessions, and telemetry all hang off a bike.",
+      "required": ["id", "user_id", "make", "model", "suspension_spec", "status", "created_at", "updated_at"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid",
+          "description": "Unique bike identifier"
+        },
+        "user_id": {
+          "$ref": "#/$defs/uuid",
+          "description": "ID of the user who owns or manages this bike"
+        },
+        "make": {
+          "type": "string",
+          "description": "Manufacturer name (e.g. Honda, Ducati, Yamaha, KTM)"
+        },
+        "model": {
+          "type": "string",
+          "description": "Model designation (e.g. CBR600RR, Panigale V4R, R1M)"
+        },
+        "year": {
+          "type": ["integer", "null"],
+          "description": "Model year of the bike"
+        },
+        "vin": {
+          "type": ["string", "null"],
+          "description": "Vehicle identification number. Optional but useful for service records."
+        },
+        "color": {
+          "type": ["string", "null"],
+          "description": "Color or livery description"
+        },
+        "mileage_km": {
+          "type": ["integer", "null"],
+          "description": "Current odometer reading in kilometres. Updated manually by the rider."
+        },
+        "engine_hours": {
+          "type": ["number", "null"],
+          "description": "Current hour meter reading. Used by track bikes that track engine hours instead of mileage."
+        },
+        "exhaust": {
+          "type": ["string", "null"],
+          "description": "Exhaust system description (e.g. Akrapovič full system, stock)"
+        },
+        "ecu": {
+          "type": ["string", "null"],
+          "description": "ECU / flash description (e.g. stock, PiggyBack, Woolich Racing flash)"
+        },
+        "gearing_front": {
+          "type": ["integer", "null"],
+          "description": "Front sprocket tooth count"
+        },
+        "gearing_rear": {
+          "type": ["integer", "null"],
+          "description": "Rear sprocket tooth count"
+        },
+        "suspension_spec": {
+          "$ref": "suspension-spec.schema.json#/$defs/SuspensionSpec",
+          "description": "Current suspension settings. Validated JSONB — see suspension-spec.schema.json for the full shape."
+        },
+        "notes": {
+          "type": ["string", "null"],
+          "description": "Free-text notes about the bike (quirks, known issues, build notes)"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["owned", "sold", "stored", "in_repair"],
+          "description": "Current ownership/availability status. Soft-deleted bikes are excluded from list views."
+        },
+        "deleted_at": {
+          "oneOf": [
+            { "$ref": "#/$defs/dateTime" },
+            { "type": "null" }
+          ],
+          "description": "Soft-delete timestamp. Non-null means the bike has been removed from the garage view but data is retained."
+        },
+        "created_at": {
+          "$ref": "#/$defs/dateTime",
+          "description": "Timestamp when this bike was added to the garage"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/dateTime",
+          "description": "Timestamp when any bike field was last modified"
+        }
+      },
+      "additionalProperties": false
+    },
+    "MaintenanceLog": {
+      "type": "object",
+      "description": "A single maintenance event for a bike — oil change, chain service, valve check, etc. Includes optional next-due reminders.",
+      "required": ["id", "bike_id", "user_id", "category", "performed_at", "created_at", "updated_at"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid",
+          "description": "Unique maintenance log entry identifier"
+        },
+        "bike_id": {
+          "$ref": "#/$defs/uuid",
+          "description": "ID of the bike this maintenance was performed on"
+        },
+        "user_id": {
+          "$ref": "#/$defs/uuid",
+          "description": "ID of the user who logged this entry"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "oil_change",
+            "coolant",
+            "brake_fluid",
+            "chain",
+            "air_filter",
+            "spark_plugs",
+            "valve_check",
+            "brake_pads",
+            "battery",
+            "general_service",
+            "other"
+          ],
+          "description": "Type of maintenance performed. Used for filtering and upcoming-service queries."
+        },
+        "description": {
+          "type": ["string", "null"],
+          "description": "What was done in plain text (e.g. 'Full oil and filter change, Motul 7100 10W-40')"
+        },
+        "mileage_km": {
+          "type": ["integer", "null"],
+          "description": "Odometer reading at time of service in kilometres"
+        },
+        "engine_hours": {
+          "type": ["number", "null"],
+          "description": "Hour meter reading at time of service"
+        },
+        "cost": {
+          "type": ["number", "null"],
+          "description": "Cost of the service, in the specified currency"
+        },
+        "currency": {
+          "oneOf": [
+            { "$ref": "#/$defs/currency" },
+            { "type": "null" }
+          ],
+          "default": "USD",
+          "description": "ISO 4217 currency code for the cost field"
+        },
+        "performed_by": {
+          "type": ["string", "null"],
+          "description": "Who performed the service (e.g. 'self', 'Honda Dealer', 'John Smith')"
+        },
+        "performed_at": {
+          "$ref": "#/$defs/date",
+          "description": "Calendar date when the maintenance was performed"
+        },
+        "next_due_km": {
+          "type": ["integer", "null"],
+          "description": "Odometer reading at which the next service of this type is due"
+        },
+        "next_due_date": {
+          "oneOf": [
+            { "$ref": "#/$defs/date" },
+            { "type": "null" }
+          ],
+          "description": "Calendar date by which the next service should be performed, regardless of mileage"
+        },
+        "notes": {
+          "type": ["string", "null"],
+          "description": "Additional free-text notes or observations"
+        },
+        "receipt_url": {
+          "type": ["string", "null"],
+          "format": "uri",
+          "description": "URL of a receipt photo stored in blob storage"
+        },
+        "created_at": {
+          "$ref": "#/$defs/dateTime",
+          "description": "Timestamp when this log entry was created"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/dateTime",
+          "description": "Timestamp when this log entry was last modified"
+        }
+      },
+      "additionalProperties": false
+    },
+    "TirePressureLog": {
+      "type": "object",
+      "description": "A timestamped tire pressure reading. Can be linked to a track session for pre/post-session analysis.",
+      "required": ["id", "bike_id", "user_id", "recorded_at", "created_at"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid",
+          "description": "Unique tire pressure log identifier"
+        },
+        "bike_id": {
+          "$ref": "#/$defs/uuid",
+          "description": "ID of the bike the reading was taken on"
+        },
+        "user_id": {
+          "$ref": "#/$defs/uuid",
+          "description": "ID of the user who logged this reading"
+        },
+        "front_psi": {
+          "type": ["number", "null"],
+          "description": "Front tire pressure in PSI at the time of reading"
+        },
+        "rear_psi": {
+          "type": ["number", "null"],
+          "description": "Rear tire pressure in PSI at the time of reading"
+        },
+        "front_temp_c": {
+          "type": ["number", "null"],
+          "description": "Front tire surface temperature in Celsius at the time of reading. Primarily useful for track sessions."
+        },
+        "rear_temp_c": {
+          "type": ["number", "null"],
+          "description": "Rear tire surface temperature in Celsius at the time of reading. Primarily useful for track sessions."
+        },
+        "context": {
+          "type": "string",
+          "enum": ["cold", "pre_ride", "post_ride", "pit_stop", "pre_session", "post_session"],
+          "default": "pre_ride",
+          "description": "When in the riding lifecycle this reading was taken. Used to group and compare readings meaningfully."
+        },
+        "session_id": {
+          "oneOf": [
+            { "$ref": "#/$defs/uuid" },
+            { "type": "null" }
+          ],
+          "description": "Optional link to a track session. Set for pre_session/post_session/pit_stop readings."
+        },
+        "notes": {
+          "type": ["string", "null"],
+          "description": "Free-text notes (e.g. 'Ambient 18°C, tyres cold from overnight')"
+        },
+        "recorded_at": {
+          "$ref": "#/$defs/dateTime",
+          "description": "Timestamp when the pressure reading was taken"
+        },
+        "created_at": {
+          "$ref": "#/$defs/dateTime",
+          "description": "Timestamp when this record was created in the database"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Modification": {
+      "type": "object",
+      "description": "A part installed, removed, or changed on a bike. Builds a full modification history for insurance, resale, and AI context.",
+      "required": ["id", "bike_id", "user_id", "action", "category", "part_name", "installed_at", "created_at", "updated_at"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid",
+          "description": "Unique modification record identifier"
+        },
+        "bike_id": {
+          "$ref": "#/$defs/uuid",
+          "description": "ID of the bike this modification applies to"
+        },
+        "user_id": {
+          "$ref": "#/$defs/uuid",
+          "description": "ID of the user who logged this modification"
+        },
+        "action": {
+          "type": "string",
+          "enum": ["installed", "removed", "swapped", "upgraded", "repaired"],
+          "description": "What was done to the part. 'swapped' implies replacing one part with another of the same type."
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "exhaust",
+            "ecu",
+            "suspension",
+            "brakes",
+            "wheels_tires",
+            "bodywork",
+            "controls",
+            "lighting",
+            "engine",
+            "drivetrain",
+            "electronics",
+            "ergonomics",
+            "other"
+          ],
+          "description": "System or area of the bike affected. Used for filtering and AI context building."
+        },
+        "part_name": {
+          "type": "string",
+          "description": "Descriptive name of the part (e.g. 'Öhlins TTX GP rear shock', 'Brembo M50 calipers')"
+        },
+        "brand": {
+          "type": ["string", "null"],
+          "description": "Part manufacturer or brand name"
+        },
+        "part_number": {
+          "type": ["string", "null"],
+          "description": "OEM or aftermarket part number for exact identification"
+        },
+        "cost": {
+          "type": ["number", "null"],
+          "description": "Cost of the part or service, in the specified currency"
+        },
+        "currency": {
+          "oneOf": [
+            { "$ref": "#/$defs/currency" },
+            { "type": "null" }
+          ],
+          "default": "USD",
+          "description": "ISO 4217 currency code for the cost field"
+        },
+        "installed_at": {
+          "$ref": "#/$defs/date",
+          "description": "Calendar date when this part was installed or the action was performed"
+        },
+        "removed_at": {
+          "oneOf": [
+            { "$ref": "#/$defs/date" },
+            { "type": "null" }
+          ],
+          "description": "Calendar date when this part was removed. Null means the part is currently installed."
+        },
+        "mileage_km": {
+          "type": ["integer", "null"],
+          "description": "Odometer reading in kilometres when this modification was made"
+        },
+        "notes": {
+          "type": ["string", "null"],
+          "description": "Free-text notes (settings used, reason for swap, supplier info, etc.)"
+        },
+        "created_at": {
+          "$ref": "#/$defs/dateTime",
+          "description": "Timestamp when this modification record was created"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/dateTime",
+          "description": "Timestamp when this modification record was last modified"
+        }
+      },
+      "additionalProperties": false
+    },
+    "OwnershipHistory": {
+      "type": "object",
+      "description": "A single ownership event for a bike — purchase, sale, trade, gift, or transfer. Builds a provenance timeline.",
+      "required": ["id", "bike_id", "user_id", "event_type", "date", "created_at"],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid",
+          "description": "Unique ownership event identifier"
+        },
+        "bike_id": {
+          "$ref": "#/$defs/uuid",
+          "description": "ID of the bike involved in this ownership event"
+        },
+        "user_id": {
+          "$ref": "#/$defs/uuid",
+          "description": "ID of the Dialed user recording this event"
+        },
+        "event_type": {
+          "type": "string",
+          "enum": ["purchased", "sold", "traded", "gifted", "transferred"],
+          "description": "The nature of the ownership transaction"
+        },
+        "date": {
+          "$ref": "#/$defs/date",
+          "description": "Calendar date when the ownership event occurred"
+        },
+        "price": {
+          "type": ["number", "null"],
+          "description": "Transaction price, in the specified currency. Null for gifted or non-monetary transfers."
+        },
+        "currency": {
+          "oneOf": [
+            { "$ref": "#/$defs/currency" },
+            { "type": "null" }
+          ],
+          "default": "USD",
+          "description": "ISO 4217 currency code for the price field"
+        },
+        "mileage_km": {
+          "type": ["integer", "null"],
+          "description": "Odometer reading in kilometres at the time of the transaction"
+        },
+        "counterparty": {
+          "type": ["string", "null"],
+          "description": "Name of the other party in the transaction (e.g. 'Honda of Seattle', 'Private seller - John D.')"
+        },
+        "notes": {
+          "type": ["string", "null"],
+          "description": "Free-text notes about the transaction"
+        },
+        "created_at": {
+          "$ref": "#/$defs/dateTime",
+          "description": "Timestamp when this ownership record was created"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

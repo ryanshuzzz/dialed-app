@@ -1,0 +1,69 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Dialed backend service — multi-stage Dockerfile template
+# ─────────────────────────────────────────────────────────────────────────────
+# Copy this pattern for each service. The build context MUST be the repo root
+# so that the shared/ package is accessible:
+#
+#   docker build -f services/<name>/Dockerfile .
+#
+# Or via docker-compose with context: . and dockerfile: services/<name>/Dockerfile
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Args ─────────────────────────────────────────────────────────────────────
+ARG PYTHON_VERSION=3.12
+ARG SERVICE_DIR=services/core-api
+ARG PORT=8001
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Stage 1: Builder — install dependencies into a virtual env
+# ══════════════════════════════════════════════════════════════════════════════
+FROM python:${PYTHON_VERSION}-slim AS builder
+
+ARG SERVICE_DIR
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends gcc libpq-dev && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Install shared package first (changes less often → better layer caching)
+COPY shared/ /build/shared/
+RUN pip install --no-cache-dir /build/shared/
+
+# Install service dependencies
+COPY ${SERVICE_DIR}/requirements.txt /build/requirements.txt
+RUN pip install --no-cache-dir -r /build/requirements.txt
+
+# Copy service source
+COPY ${SERVICE_DIR}/ /build/service/
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Stage 2: Runtime — slim image with only what's needed to run
+# ══════════════════════════════════════════════════════════════════════════════
+FROM python:${PYTHON_VERSION}-slim AS runtime
+
+ARG PORT=8001
+
+# libpq is needed at runtime for asyncpg; curl is needed for healthchecks
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends libpq5 curl && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy the virtual env with all installed packages from builder
+COPY --from=builder /opt/venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+# Copy service code
+COPY --from=builder /build/service/ /app/
+
+# Non-root user for security
+RUN useradd --create-home --shell /bin/bash dialed
+USER dialed
+WORKDIR /app
+
+ENV PORT=${PORT}
+EXPOSE ${PORT}
+
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT}"]
