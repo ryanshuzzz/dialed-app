@@ -1,8 +1,19 @@
 # Dialed App — Stage 2 Integration Playbook
 
-> **Purpose:** Step-by-step prompts for Claude Code to merge all four feature branches, boot the full stack, and debug until everything works end-to-end.  
-> **Prerequisites:** Stage 0 and Stage 1 are complete. All four feature branches exist. Infrastructure containers (Postgres, TimescaleDB, Redis) can boot.  
+> **Purpose:** Step-by-step prompts for Claude Code to merge all four feature branches, boot the full stack, and debug until everything works end-to-end.
+> **Prerequisites:** Stage 0 and Stage 1 are complete. All four feature branches exist. Infrastructure containers (Postgres, TimescaleDB, Redis) can boot.
 > **Agent setup:** All seven subagents are in `.claude/agents/`. Set `export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` before starting Claude Code.
+
+### Progress Tracker
+| Step | Status | Notes |
+|------|--------|-------|
+| Step 0 — Pre-merge infra validation | **DONE** | Postgres, TimescaleDB, Redis healthy. Schemas created. All 4 branches present. |
+| Step 1 — Merge Core API | **DONE** | 110/110 tests pass. 16 tables created. /health 200. Fixes: email-validator dep, alembic sys.path, test deps in Dockerfile. |
+| Step 2 — Merge Telemetry/Ingestion | Not started | |
+| Step 3 — Merge AI | Not started | |
+| Step 4 — Merge Frontend + Gateway | Not started | |
+| Step 5 — End-to-end user flow | Not started | |
+| Step 6 — Final tests + tag | Not started | |
 
 -----
 
