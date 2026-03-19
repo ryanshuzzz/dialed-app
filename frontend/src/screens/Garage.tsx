@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { useBikes, useCreateBike } from '@/hooks/useBikes';
 import { BikeCard } from '@/components/garage/BikeCard';
 import { EmptyState } from '@/components/common/EmptyState';
+import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
+import { ErrorState } from '@/components/common/ErrorState';
 import { Modal } from '@/components/common/Modal';
 import type { CreateBikeRequest } from '@/api/types';
 
@@ -15,7 +17,7 @@ const INITIAL_FORM: CreateBikeRequest = {
 };
 
 export default function Garage() {
-  const { data: bikes, isLoading, isError } = useBikes();
+  const { data: bikes, isLoading, isError, refetch } = useBikes();
   const createBike = useCreateBike();
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState<CreateBikeRequest>({ ...INITIAL_FORM });
@@ -33,16 +35,22 @@ export default function Garage() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Loading bikes...</p>
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">Garage</h2>
+        </div>
+        <LoadingSkeleton variant="cards" count={3} />
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-red-500">Failed to load bikes. Please try again.</p>
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">Garage</h2>
+        </div>
+        <ErrorState message="Failed to load bikes. Please try again." onRetry={() => refetch()} />
       </div>
     );
   }
@@ -53,7 +61,7 @@ export default function Garage() {
         <h2 className="text-2xl font-bold text-gray-900">Garage</h2>
         <button
           onClick={() => setShowAdd(true)}
-          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          className="px-4 py-2 min-h-[44px] bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
           data-testid="add-bike-button"
         >
           Add Bike
@@ -61,7 +69,7 @@ export default function Garage() {
       </div>
 
       {bikes && bikes.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="bike-grid">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="bike-grid">
           {bikes.map((bike) => (
             <BikeCard key={bike.id} bike={bike} />
           ))}
@@ -87,7 +95,7 @@ export default function Garage() {
                 required
                 value={form.make}
                 onChange={(e) => setForm((f) => ({ ...f, make: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="e.g. Ducati"
               />
             </div>
@@ -102,7 +110,7 @@ export default function Garage() {
                 required
                 value={form.model}
                 onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="e.g. Panigale V4"
               />
             </div>
@@ -124,7 +132,7 @@ export default function Garage() {
                       year: e.target.value ? Number(e.target.value) : null,
                     }))
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="2024"
                 />
               </div>
@@ -139,7 +147,7 @@ export default function Garage() {
                   onChange={(e) =>
                     setForm((f) => ({ ...f, color: e.target.value || null }))
                   }
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Red"
                 />
               </div>
@@ -160,7 +168,7 @@ export default function Garage() {
                     mileage_km: e.target.value ? Number(e.target.value) : null,
                   }))
                 }
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="0"
               />
             </div>
@@ -170,14 +178,14 @@ export default function Garage() {
             <button
               type="button"
               onClick={() => setShowAdd(false)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              className="px-4 py-2 min-h-[44px] text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={createBike.isPending}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="px-4 py-2 min-h-[44px] text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
               {createBike.isPending ? 'Adding...' : 'Add Bike'}
             </button>

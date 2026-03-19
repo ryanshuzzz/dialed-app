@@ -156,6 +156,6 @@ describe('Garage screen', () => {
   it('shows loading state', () => {
     fetchSpy.mockReturnValueOnce(new Promise(() => {})); // Never resolves
     renderWithProviders(<Garage />);
-    expect(screen.getByText('Loading bikes...')).toBeInTheDocument();
+    expect(screen.getByTestId('loading-skeleton')).toBeInTheDocument();
   });
 });

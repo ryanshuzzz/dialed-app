@@ -305,7 +305,7 @@ describe('SessionDetail screen', () => {
   it('renders loading state', () => {
     fetchSpy.mockReturnValue(new Promise(() => {})); // Never resolves
     renderWithProviders(<SessionDetail />);
-    expect(screen.getByText('Loading session...')).toBeInTheDocument();
+    expect(screen.getAllByTestId('loading-skeleton').length).toBeGreaterThan(0);
   });
 
   it('renders telemetry section when channels are available', async () => {

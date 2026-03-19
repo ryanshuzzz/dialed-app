@@ -4,6 +4,8 @@ import { useEvents, useCreateEvent } from '@/hooks/useEvents';
 import { useBikes } from '@/hooks/useBikes';
 import { useTracks } from '@/hooks/useTracks';
 import { EmptyState } from '@/components/common/EmptyState';
+import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
+import { ErrorState } from '@/components/common/ErrorState';
 import { Modal } from '@/components/common/Modal';
 import type { CreateEventRequest, Conditions } from '@/api/types';
 
@@ -45,7 +47,7 @@ export default function Events() {
     return Object.keys(f).length > 0 ? f : undefined;
   }, [filterBike, filterTrack, filterFromDate, filterToDate]);
 
-  const { data: events, isLoading, isError } = useEvents(filters);
+  const { data: events, isLoading, isError, refetch } = useEvents(filters);
   const { data: bikes } = useBikes();
   const { data: tracks } = useTracks();
   const createEvent = useCreateEvent();
@@ -91,16 +93,22 @@ export default function Events() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Loading events...</p>
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">Events</h2>
+        </div>
+        <LoadingSkeleton variant="cards" count={3} />
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-red-500">Failed to load events. Please try again.</p>
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">Events</h2>
+        </div>
+        <ErrorState message="Failed to load events. Please try again." onRetry={() => refetch()} />
       </div>
     );
   }
@@ -111,7 +119,7 @@ export default function Events() {
         <h2 className="text-2xl font-bold text-gray-900">Events</h2>
         <button
           onClick={() => setShowAdd(true)}
-          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          className="px-4 py-2 min-h-[44px] bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
           data-testid="add-event-button"
         >
           Add Event
@@ -119,11 +127,11 @@ export default function Events() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-3 mb-4" data-testid="event-filters">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-4" data-testid="event-filters">
         <select
           value={filterBike}
           onChange={(e) => setFilterBike(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+          className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
           data-testid="filter-bike"
           aria-label="Filter by bike"
         >
@@ -138,7 +146,7 @@ export default function Events() {
         <select
           value={filterTrack}
           onChange={(e) => setFilterTrack(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+          className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
           data-testid="filter-track"
           aria-label="Filter by track"
         >
@@ -154,7 +162,7 @@ export default function Events() {
           type="date"
           value={filterFromDate}
           onChange={(e) => setFilterFromDate(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+          className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
           aria-label="From date"
           data-testid="filter-from-date"
         />
@@ -162,7 +170,7 @@ export default function Events() {
           type="date"
           value={filterToDate}
           onChange={(e) => setFilterToDate(e.target.value)}
-          className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+          className="px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
           aria-label="To date"
           data-testid="filter-to-date"
         />
@@ -221,7 +229,7 @@ export default function Events() {
                 required
                 value={form.bike_id}
                 onChange={(e) => setForm((f) => ({ ...f, bike_id: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">Select a bike</option>
                 {bikes?.map((b) => (
@@ -241,7 +249,7 @@ export default function Events() {
                 required
                 value={form.track_id}
                 onChange={(e) => setForm((f) => ({ ...f, track_id: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="">Select a track</option>
                 {tracks?.map((t) => (
@@ -262,7 +270,7 @@ export default function Events() {
                 required
                 value={form.date}
                 onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
 
@@ -280,7 +288,7 @@ export default function Events() {
                     onChange={(e) =>
                       updateCondition('temp_c', e.target.value ? Number(e.target.value) : null)
                     }
-                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                    className="w-full px-2 py-1.5 min-h-[44px] border border-gray-300 rounded text-sm"
                   />
                 </div>
                 <div>
@@ -296,7 +304,7 @@ export default function Events() {
                     onChange={(e) =>
                       updateCondition('humidity_pct', e.target.value ? Number(e.target.value) : null)
                     }
-                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                    className="w-full px-2 py-1.5 min-h-[44px] border border-gray-300 rounded text-sm"
                   />
                 </div>
                 <div>
@@ -310,7 +318,7 @@ export default function Events() {
                     onChange={(e) =>
                       updateCondition('track_temp_c', e.target.value ? Number(e.target.value) : null)
                     }
-                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                    className="w-full px-2 py-1.5 min-h-[44px] border border-gray-300 rounded text-sm"
                   />
                 </div>
                 <div>
@@ -325,7 +333,7 @@ export default function Events() {
                     onChange={(e) =>
                       updateCondition('wind_kph', e.target.value ? Number(e.target.value) : null)
                     }
-                    className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                    className="w-full px-2 py-1.5 min-h-[44px] border border-gray-300 rounded text-sm"
                   />
                 </div>
               </div>
@@ -342,7 +350,7 @@ export default function Events() {
                       (e.target.value || null) as Conditions['condition'],
                     )
                   }
-                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                  className="w-full px-2 py-1.5 min-h-[44px] border border-gray-300 rounded text-sm"
                 >
                   <option value="">--</option>
                   {CONDITION_OPTIONS.map((c) => (
@@ -361,7 +369,7 @@ export default function Events() {
                   rows={2}
                   value={form.conditions.notes ?? ''}
                   onChange={(e) => updateCondition('notes', e.target.value || null)}
-                  className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm"
+                  className="w-full px-2 py-1.5 min-h-[44px] border border-gray-300 rounded text-sm"
                   placeholder="Weather, surface observations..."
                 />
               </div>
@@ -372,14 +380,14 @@ export default function Events() {
             <button
               type="button"
               onClick={() => setShowAdd(false)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              className="px-4 py-2 min-h-[44px] text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={createEvent.isPending}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="px-4 py-2 min-h-[44px] text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
               {createEvent.isPending ? 'Creating...' : 'Create Event'}
             </button>

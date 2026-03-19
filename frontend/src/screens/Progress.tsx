@@ -10,6 +10,9 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 import { useLapTrends, useEfficacy, useSessionHistory } from '@/hooks/useProgress';
+import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
+import { ErrorState } from '@/components/common/ErrorState';
+import { EmptyState } from '@/components/common/EmptyState';
 
 const TRACK_COLORS = [
   '#2563eb', // blue
@@ -34,7 +37,7 @@ type SortKey = 'date' | 'best_lap_ms' | 'track_name';
 type SortDir = 'asc' | 'desc';
 
 export default function Progress() {
-  const { data: progress, isLoading: progressLoading } = useLapTrends();
+  const { data: progress, isLoading: progressLoading, isError: progressError, refetch: refetchProgress } = useLapTrends();
   const { data: efficacy, isLoading: efficacyLoading } = useEfficacy();
   const { data: history, isLoading: historyLoading } = useSessionHistory();
 
@@ -97,8 +100,34 @@ export default function Progress() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Loading progress data...</p>
+      <div className="space-y-8">
+        <h2 className="text-2xl font-bold">Progress</h2>
+        <LoadingSkeleton variant="lines" count={3} />
+        <LoadingSkeleton variant="cards" count={3} />
+        <LoadingSkeleton variant="table" count={4} />
+      </div>
+    );
+  }
+
+  if (progressError) {
+    return (
+      <div className="space-y-8">
+        <h2 className="text-2xl font-bold">Progress</h2>
+        <ErrorState message="Failed to load progress data." onRetry={() => refetchProgress()} />
+      </div>
+    );
+  }
+
+  const hasData = (progress?.lap_time_trend?.length ?? 0) > 0 || (history?.sessions?.length ?? 0) > 0;
+
+  if (!hasData) {
+    return (
+      <div className="space-y-8">
+        <h2 className="text-2xl font-bold">Progress</h2>
+        <EmptyState
+          title="No progress data yet"
+          description="Complete some track sessions to see your lap time trends and improvement."
+        />
       </div>
     );
   }
@@ -110,7 +139,7 @@ export default function Progress() {
       {/* Lap Time Trend Chart */}
       <section>
         <h3 className="text-lg font-semibold mb-3">Lap Time Trends</h3>
-        <div className="bg-white rounded-lg border border-gray-200 p-4" data-testid="lap-trend-chart">
+        <div className="bg-white rounded-lg border border-gray-200 p-2 sm:p-4" data-testid="lap-trend-chart">
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={chartData}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -143,11 +172,11 @@ export default function Progress() {
 
       {/* Best Laps by Track + Total Time Found */}
       <section>
-        <div className="flex flex-wrap gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {progress?.best_laps_by_track?.map((best) => (
             <div
               key={best.track_id}
-              className="bg-white rounded-lg border border-gray-200 p-4 flex-1 min-w-[200px]"
+              className="bg-white rounded-lg border border-gray-200 p-4"
               data-testid="best-lap-card"
             >
               <h4 className="font-semibold text-gray-900">{best.track_name}</h4>
@@ -158,7 +187,7 @@ export default function Progress() {
             </div>
           ))}
           {progress?.total_time_found_ms != null && (
-            <div className="bg-white rounded-lg border border-gray-200 p-4 flex-1 min-w-[200px]" data-testid="total-time-found">
+            <div className="bg-white rounded-lg border border-gray-200 p-4" data-testid="total-time-found">
               <h4 className="font-semibold text-gray-900">Total Time Found</h4>
               <p className="text-2xl font-bold text-green-700 mt-1">
                 {formatLapTime(progress.total_time_found_ms)}
@@ -172,32 +201,32 @@ export default function Progress() {
       {/* Efficacy Dashboard */}
       <section>
         <h3 className="text-lg font-semibold mb-3">Efficacy Dashboard</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" data-testid="efficacy-dashboard">
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <p className="text-sm text-gray-500">Adoption Rate</p>
-            <p className="text-2xl font-bold text-blue-800" data-testid="adoption-rate">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4" data-testid="efficacy-dashboard">
+          <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-gray-500">Adoption Rate</p>
+            <p className="text-xl sm:text-2xl font-bold text-blue-800" data-testid="adoption-rate">
               {efficacy?.adoption_rate != null ? `${Math.round(efficacy.adoption_rate * 100)}%` : 'N/A'}
             </p>
           </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <p className="text-sm text-gray-500">Avg Delta (Applied)</p>
-            <p className="text-2xl font-bold text-green-700" data-testid="delta-applied">
+          <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-gray-500">Avg Delta (Applied)</p>
+            <p className="text-xl sm:text-2xl font-bold text-green-700" data-testid="delta-applied">
               {efficacy?.avg_delta_by_status?.applied != null
                 ? formatDelta(efficacy.avg_delta_by_status.applied)
                 : 'N/A'}
             </p>
           </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <p className="text-sm text-gray-500">Avg Delta (Modified)</p>
-            <p className="text-2xl font-bold text-yellow-600" data-testid="delta-modified">
+          <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-gray-500">Avg Delta (Modified)</p>
+            <p className="text-xl sm:text-2xl font-bold text-yellow-600" data-testid="delta-modified">
               {efficacy?.avg_delta_by_status?.applied_modified != null
                 ? formatDelta(efficacy.avg_delta_by_status.applied_modified)
                 : 'N/A'}
             </p>
           </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-4">
-            <p className="text-sm text-gray-500">Avg Delta (Skipped)</p>
-            <p className="text-2xl font-bold text-red-600" data-testid="delta-skipped">
+          <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
+            <p className="text-xs sm:text-sm text-gray-500">Avg Delta (Skipped)</p>
+            <p className="text-xl sm:text-2xl font-bold text-red-600" data-testid="delta-skipped">
               {efficacy?.avg_delta_by_status?.skipped != null
                 ? formatDelta(efficacy.avg_delta_by_status.skipped)
                 : 'N/A'}
@@ -208,12 +237,12 @@ export default function Progress() {
 
       {/* Session History Table */}
       <section>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-3">
           <h3 className="text-lg font-semibold">Session History</h3>
           <select
             value={trackFilter}
             onChange={(e) => setTrackFilter(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-1.5 text-sm"
+            className="border border-gray-300 rounded-md px-3 py-1.5 min-h-[44px] text-sm self-start sm:self-auto"
             data-testid="track-filter"
           >
             <option value="all">All Tracks</option>
@@ -229,37 +258,37 @@ export default function Progress() {
             <thead>
               <tr className="border-b border-gray-200 bg-gray-50">
                 <th
-                  className="px-4 py-3 text-left font-medium text-gray-600 cursor-pointer select-none"
+                  className="px-3 sm:px-4 py-3 text-left font-medium text-gray-600 cursor-pointer select-none min-h-[44px]"
                   onClick={() => handleSort('date')}
                 >
                   Date {sortKey === 'date' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </th>
                 <th
-                  className="px-4 py-3 text-left font-medium text-gray-600 cursor-pointer select-none"
+                  className="px-3 sm:px-4 py-3 text-left font-medium text-gray-600 cursor-pointer select-none min-h-[44px]"
                   onClick={() => handleSort('track_name')}
                 >
                   Track {sortKey === 'track_name' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Type</th>
+                <th className="px-3 sm:px-4 py-3 text-left font-medium text-gray-600 hidden sm:table-cell">Type</th>
                 <th
-                  className="px-4 py-3 text-left font-medium text-gray-600 cursor-pointer select-none"
+                  className="px-3 sm:px-4 py-3 text-left font-medium text-gray-600 cursor-pointer select-none min-h-[44px]"
                   onClick={() => handleSort('best_lap_ms')}
                 >
                   Best Lap {sortKey === 'best_lap_ms' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
                 </th>
-                <th className="px-4 py-3 text-left font-medium text-gray-600">Delta</th>
+                <th className="px-3 sm:px-4 py-3 text-left font-medium text-gray-600">Delta</th>
               </tr>
             </thead>
             <tbody>
               {filteredSessions.map((session) => (
                 <tr key={session.session_id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="px-4 py-3">{session.date}</td>
-                  <td className="px-4 py-3">{session.track_name}</td>
-                  <td className="px-4 py-3 capitalize">{session.session_type}</td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 sm:px-4 py-3">{session.date}</td>
+                  <td className="px-3 sm:px-4 py-3">{session.track_name}</td>
+                  <td className="px-3 sm:px-4 py-3 capitalize hidden sm:table-cell">{session.session_type}</td>
+                  <td className="px-3 sm:px-4 py-3">
                     {session.best_lap_ms != null ? formatLapTime(session.best_lap_ms) : '-'}
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-3 sm:px-4 py-3">
                     {session.delta_from_previous_ms != null ? (
                       <span
                         className={
@@ -276,6 +305,13 @@ export default function Progress() {
                   </td>
                 </tr>
               ))}
+              {filteredSessions.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-6 text-center text-gray-500">
+                    No sessions match the selected filter.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

@@ -233,6 +233,6 @@ describe('BikeDetail screen', () => {
   it('shows loading state', () => {
     fetchSpy.mockReturnValueOnce(new Promise(() => {})); // Never resolves
     renderBikeDetail();
-    expect(screen.getByText('Loading bike details...')).toBeInTheDocument();
+    expect(screen.getByTestId('loading-skeleton')).toBeInTheDocument();
   });
 });

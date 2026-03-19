@@ -168,7 +168,7 @@ export default function SessionLogger() {
   ];
 
   return (
-    <div className="max-w-2xl mx-auto" data-testid="session-logger">
+    <div className="max-w-2xl mx-auto px-0 sm:px-4" data-testid="session-logger">
       <h2 className="text-2xl font-bold mb-6">Log Session</h2>
 
       {/* Step indicator */}
@@ -176,7 +176,7 @@ export default function SessionLogger() {
         {steps.map((s, i) => (
           <div key={s.key} className="flex items-center flex-1">
             <div
-              className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium ${
+              className={`flex items-center justify-center w-8 h-8 min-w-[32px] rounded-full text-sm font-medium ${
                 s.key === step
                   ? 'bg-blue-600 text-white'
                   : steps.findIndex((st) => st.key === step) > i
@@ -199,11 +199,12 @@ export default function SessionLogger() {
         <div className="space-y-4" data-testid="step-event">
           <h3 className="text-lg font-semibold text-gray-800">Select or Create Event</h3>
 
-          <label className="flex items-center gap-2 text-sm text-gray-600">
+          <label className="flex items-center gap-2 text-sm text-gray-600 min-h-[44px]">
             <input
               type="checkbox"
               checked={createNewEvent}
               onChange={(e) => setCreateNewEvent(e.target.checked)}
+              className="w-5 h-5"
             />
             Create new event
           </label>
@@ -215,7 +216,7 @@ export default function SessionLogger() {
                 <select
                   value={bikeId}
                   onChange={(e) => setBikeId(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                   data-testid="bike-select"
                 >
                   <option value="">Select bike...</option>
@@ -232,7 +233,7 @@ export default function SessionLogger() {
                 <select
                   value={trackId}
                   onChange={(e) => setTrackId(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                   data-testid="track-select"
                 >
                   <option value="">Select track...</option>
@@ -250,7 +251,7 @@ export default function SessionLogger() {
                   type="date"
                   value={eventDate}
                   onChange={(e) => setEventDate(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
               <div>
@@ -263,7 +264,7 @@ export default function SessionLogger() {
                       condition: (e.target.value || null) as Conditions['condition'],
                     }))
                   }
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 >
                   <option value="">Select conditions...</option>
                   {CONDITION_OPTIONS.map((c) => (
@@ -280,7 +281,7 @@ export default function SessionLogger() {
               <select
                 value={selectedEventId}
                 onChange={(e) => setSelectedEventId(e.target.value)}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 data-testid="event-select"
               >
                 <option value="">Select event...</option>
@@ -296,7 +297,7 @@ export default function SessionLogger() {
           <button
             onClick={handleNextFromEvent}
             disabled={!createNewEvent && !selectedEventId}
-            className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-2 min-h-[44px] bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
             data-testid="next-button"
           >
             Next
@@ -314,7 +315,7 @@ export default function SessionLogger() {
             <select
               value={sessionType}
               onChange={(e) => setSessionType(e.target.value as typeof SESSION_TYPES[number])}
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm focus:ring-2 focus:ring-blue-500 outline-none"
               data-testid="session-type-select"
             >
               {SESSION_TYPES.map((t) => (
@@ -332,13 +333,13 @@ export default function SessionLogger() {
               value={manualBestLapMs}
               onChange={(e) => setManualBestLapMs(e.target.value)}
               placeholder="e.g. 98432"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>
 
           <fieldset className="border border-gray-200 rounded-lg p-4">
             <legend className="text-sm font-medium text-gray-700 px-1">Tire Info</legend>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Front Brand</label>
                 <input
@@ -346,7 +347,7 @@ export default function SessionLogger() {
                   value={tireFrontBrand}
                   onChange={(e) => setTireFrontBrand(e.target.value)}
                   placeholder="Pirelli"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
               <div>
@@ -356,7 +357,7 @@ export default function SessionLogger() {
                   value={tireFrontCompound}
                   onChange={(e) => setTireFrontCompound(e.target.value)}
                   placeholder="SC1"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
               <div>
@@ -366,7 +367,7 @@ export default function SessionLogger() {
                   value={tireRearBrand}
                   onChange={(e) => setTireRearBrand(e.target.value)}
                   placeholder="Pirelli"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
               <div>
@@ -376,7 +377,7 @@ export default function SessionLogger() {
                   value={tireRearCompound}
                   onChange={(e) => setTireRearCompound(e.target.value)}
                   placeholder="SC2"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm focus:ring-2 focus:ring-blue-500 outline-none"
                 />
               </div>
             </div>
@@ -389,7 +390,7 @@ export default function SessionLogger() {
               onChange={(e) => setRiderFeedback(e.target.value)}
               rows={4}
               placeholder="How did the bike feel? Any issues?"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+              className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
               data-testid="rider-feedback"
             />
           </div>
@@ -397,13 +398,13 @@ export default function SessionLogger() {
           <div className="flex gap-2">
             <button
               onClick={() => setStep('event')}
-              className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors"
+              className="px-4 py-2 min-h-[44px] bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors"
             >
               Back
             </button>
             <button
               onClick={handleNextFromDetails}
-              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              className="px-4 py-2 min-h-[44px] bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
               data-testid="next-button"
             >
               Next
@@ -431,7 +432,7 @@ export default function SessionLogger() {
                   const file = e.target.files?.[0];
                   if (file) handleFileUpload('csv', file);
                 }}
-                className="text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                className="text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 file:min-h-[44px]"
                 data-testid="csv-upload"
               />
             </div>
@@ -446,7 +447,7 @@ export default function SessionLogger() {
                   const file = e.target.files?.[0];
                   if (file) handleFileUpload('ocr', file);
                 }}
-                className="text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                className="text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 file:min-h-[44px]"
                 data-testid="ocr-upload"
               />
             </div>
@@ -461,7 +462,7 @@ export default function SessionLogger() {
                   const file = e.target.files?.[0];
                   if (file) handleFileUpload('voice', file);
                 }}
-                className="text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                className="text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 file:min-h-[44px]"
                 data-testid="voice-upload"
               />
             </div>
@@ -483,7 +484,7 @@ export default function SessionLogger() {
                   </pre>
                   <button
                     onClick={handleConfirmIngestion}
-                    className="mt-3 px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+                    className="mt-3 px-4 py-2 min-h-[44px] bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
                     data-testid="confirm-ingestion"
                   >
                     Confirm Results
@@ -502,13 +503,13 @@ export default function SessionLogger() {
           <div className="flex gap-2">
             <button
               onClick={() => setStep('details')}
-              className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors"
+              className="px-4 py-2 min-h-[44px] bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors"
             >
               Back
             </button>
             <button
               onClick={() => setStep('review')}
-              className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              className="px-4 py-2 min-h-[44px] bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
               data-testid="next-button"
             >
               Next
@@ -560,13 +561,13 @@ export default function SessionLogger() {
           <div className="flex gap-2">
             <button
               onClick={() => setStep('upload')}
-              className="px-4 py-2 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors"
+              className="px-4 py-2 min-h-[44px] bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors"
             >
               Back
             </button>
             <button
               onClick={handleSaveSession}
-              className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+              className="px-4 py-2 min-h-[44px] bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
               data-testid="save-session"
             >
               {createdSessionId ? 'View Session' : 'Save Session'}

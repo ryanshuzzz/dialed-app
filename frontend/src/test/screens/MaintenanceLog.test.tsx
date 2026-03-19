@@ -335,13 +335,13 @@ describe('MaintenanceLog screen', () => {
     renderMaintenanceLog();
 
     await waitFor(() => {
-      expect(screen.getByText('No maintenance entries yet.')).toBeInTheDocument();
+      expect(screen.getByTestId('empty-state')).toBeInTheDocument();
     });
   });
 
   it('shows loading state', () => {
     fetchSpy.mockReturnValue(new Promise(() => {}));
     renderMaintenanceLog();
-    expect(screen.getByText('Loading maintenance entries...')).toBeInTheDocument();
+    expect(screen.getByTestId('loading-skeleton')).toBeInTheDocument();
   });
 });

@@ -7,10 +7,12 @@ import {
   useDeleteApiKey,
 } from '@/hooks/useAuth';
 import { useUiStore } from '@/stores/uiStore';
+import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
+import { ErrorState } from '@/components/common/ErrorState';
 import type { UserProfile } from '@/api/types';
 
 export default function Settings() {
-  const { data: profile, isLoading: profileLoading } = useProfile();
+  const { data: profile, isLoading: profileLoading, isError: profileError, refetch: refetchProfile } = useProfile();
   const updateProfile = useUpdateProfile();
   const { data: apiKeys, isLoading: keysLoading } = useApiKeys();
   const createKey = useCreateApiKey();
@@ -87,8 +89,18 @@ export default function Settings() {
 
   if (profileLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Loading settings...</p>
+      <div className="space-y-8 max-w-2xl">
+        <h2 className="text-2xl font-bold">Settings</h2>
+        <LoadingSkeleton variant="lines" count={5} />
+      </div>
+    );
+  }
+
+  if (profileError) {
+    return (
+      <div className="space-y-8 max-w-2xl">
+        <h2 className="text-2xl font-bold">Settings</h2>
+        <ErrorState message="Failed to load settings." onRetry={() => refetchProfile()} />
       </div>
     );
   }
@@ -98,7 +110,7 @@ export default function Settings() {
       <h2 className="text-2xl font-bold">Settings</h2>
 
       {/* Profile Section */}
-      <section className="bg-white rounded-lg border border-gray-200 p-6">
+      <section className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
         <h3 className="text-lg font-semibold mb-4">Profile</h3>
         <div className="space-y-4">
           <div>
@@ -110,7 +122,7 @@ export default function Settings() {
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+              className="w-full border border-gray-300 rounded-md px-3 py-2 min-h-[44px] text-sm"
               placeholder="Your name"
             />
           </div>
@@ -124,7 +136,7 @@ export default function Settings() {
               type="email"
               value={profile?.email ?? ''}
               readOnly
-              className="w-full border border-gray-200 rounded-md px-3 py-2 text-sm bg-gray-50 text-gray-500"
+              className="w-full border border-gray-200 rounded-md px-3 py-2 min-h-[44px] text-sm bg-gray-50 text-gray-500"
             />
           </div>
 
@@ -136,7 +148,7 @@ export default function Settings() {
               id="rider-type"
               value={riderType}
               onChange={(e) => setRiderTypeLocal(e.target.value as UserProfile['rider_type'])}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+              className="w-full border border-gray-300 rounded-md px-3 py-2 min-h-[44px] text-sm"
               data-testid="rider-type-select"
             >
               <option value="street">Street</option>
@@ -153,7 +165,7 @@ export default function Settings() {
               id="skill-level"
               value={skillLevel}
               onChange={(e) => setSkillLevel(e.target.value as UserProfile['skill_level'])}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+              className="w-full border border-gray-300 rounded-md px-3 py-2 min-h-[44px] text-sm"
             >
               <option value="novice">Novice</option>
               <option value="intermediate">Intermediate</option>
@@ -169,7 +181,7 @@ export default function Settings() {
               id="units"
               value={units}
               onChange={(e) => setUnits(e.target.value as UserProfile['units'])}
-              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+              className="w-full border border-gray-300 rounded-md px-3 py-2 min-h-[44px] text-sm"
             >
               <option value="metric">Metric</option>
               <option value="imperial">Imperial</option>
@@ -179,7 +191,7 @@ export default function Settings() {
           <button
             onClick={handleProfileSave}
             disabled={updateProfile.isPending}
-            className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+            className="bg-blue-600 text-white px-4 py-2 min-h-[44px] rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
             data-testid="save-profile-btn"
           >
             {updateProfile.isPending ? 'Saving...' : 'Save Profile'}
@@ -188,11 +200,11 @@ export default function Settings() {
       </section>
 
       {/* API Keys Section */}
-      <section className="bg-white rounded-lg border border-gray-200 p-6">
+      <section className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
         <h3 className="text-lg font-semibold mb-4">API Keys</h3>
 
         {keysLoading ? (
-          <p className="text-gray-500 text-sm">Loading keys...</p>
+          <LoadingSkeleton variant="lines" count={3} />
         ) : (
           <div className="space-y-4">
             {/* Key list */}
@@ -200,7 +212,7 @@ export default function Settings() {
               {apiKeys?.map((key) => (
                 <div
                   key={key.id}
-                  className="flex items-center justify-between border border-gray-100 rounded-md p-3"
+                  className="flex flex-col sm:flex-row sm:items-center justify-between border border-gray-100 rounded-md p-3 gap-2"
                 >
                   <div>
                     <p className="font-medium text-sm">{key.name}</p>
@@ -215,14 +227,14 @@ export default function Settings() {
                       <div className="flex gap-2">
                         <button
                           onClick={() => handleDeleteKey(key.id)}
-                          className="text-red-600 text-sm font-medium hover:underline"
+                          className="text-red-600 text-sm font-medium hover:underline min-h-[44px] flex items-center"
                           data-testid={`confirm-delete-${key.id}`}
                         >
                           Confirm
                         </button>
                         <button
                           onClick={() => setDeleteConfirmId(null)}
-                          className="text-gray-500 text-sm hover:underline"
+                          className="text-gray-500 text-sm hover:underline min-h-[44px] flex items-center"
                         >
                           Cancel
                         </button>
@@ -230,7 +242,7 @@ export default function Settings() {
                     ) : (
                       <button
                         onClick={() => setDeleteConfirmId(key.id)}
-                        className="text-red-500 text-sm hover:underline"
+                        className="text-red-500 text-sm hover:underline min-h-[44px] flex items-center"
                         data-testid={`delete-key-${key.id}`}
                       >
                         Delete
@@ -261,7 +273,7 @@ export default function Settings() {
                 placeholder="Key name"
                 value={newKeyName}
                 onChange={(e) => setNewKeyName(e.target.value)}
-                className="border border-gray-300 rounded-md px-3 py-2 text-sm flex-1"
+                className="border border-gray-300 rounded-md px-3 py-2 min-h-[44px] text-sm flex-1"
                 data-testid="new-key-name"
               />
               <input
@@ -269,13 +281,13 @@ export default function Settings() {
                 placeholder="Expires (optional)"
                 value={newKeyExpires}
                 onChange={(e) => setNewKeyExpires(e.target.value)}
-                className="border border-gray-300 rounded-md px-3 py-2 text-sm"
+                className="border border-gray-300 rounded-md px-3 py-2 min-h-[44px] text-sm"
                 data-testid="new-key-expires"
               />
               <button
                 type="submit"
                 disabled={createKey.isPending || !newKeyName.trim()}
-                className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+                className="bg-blue-600 text-white px-4 py-2 min-h-[44px] rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
                 data-testid="create-key-btn"
               >
                 Create Key

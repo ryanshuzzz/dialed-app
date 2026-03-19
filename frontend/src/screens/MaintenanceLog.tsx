@@ -8,6 +8,8 @@ import {
 import { MaintenanceEntry } from '@/components/garage/MaintenanceEntry';
 import { MaintenanceForm } from '@/components/garage/MaintenanceForm';
 import { UpcomingMaintenance } from '@/components/garage/UpcomingMaintenance';
+import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
+import { EmptyState } from '@/components/common/EmptyState';
 import type { CreateMaintenanceRequest } from '@/api/types';
 
 const FILTER_CATEGORIES = [
@@ -63,13 +65,13 @@ export default function MaintenanceLogScreen({ bikeId: bikeIdProp }: Maintenance
       )}
 
       {/* Header with filter and add button */}
-      <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-        <div className="flex items-center gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <h3 className="text-lg font-semibold text-gray-900">Maintenance Log</h3>
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+            className="px-3 py-1.5 min-h-[44px] border border-gray-300 rounded-lg text-sm"
             data-testid="category-filter"
           >
             {FILTER_CATEGORIES.map((cat) => (
@@ -82,7 +84,7 @@ export default function MaintenanceLogScreen({ bikeId: bikeIdProp }: Maintenance
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+            className="px-4 py-2 min-h-[44px] text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors self-start sm:self-auto"
             data-testid="add-maintenance-button"
           >
             Add Maintenance
@@ -103,11 +105,13 @@ export default function MaintenanceLogScreen({ bikeId: bikeIdProp }: Maintenance
 
       {/* Entries list */}
       {isLoading ? (
-        <p className="text-gray-500 text-sm">Loading maintenance entries...</p>
+        <LoadingSkeleton variant="lines" count={4} />
       ) : sortedEntries.length === 0 ? (
-        <div className="text-center py-8">
-          <p className="text-gray-500 text-sm">No maintenance entries yet.</p>
-        </div>
+        <EmptyState
+          title="No maintenance entries"
+          description="Add your first maintenance entry to start tracking."
+          action={{ label: 'Add Maintenance', onClick: () => setShowForm(true) }}
+        />
       ) : (
         <div className="space-y-3" data-testid="maintenance-list">
           {sortedEntries.map((entry) => (

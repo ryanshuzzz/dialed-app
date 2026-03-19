@@ -3,10 +3,13 @@ import { useParams, Link } from 'react-router-dom';
 import { useBike, useUpdateBike } from '@/hooks/useBikes';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { SuspensionSpecCard } from '@/components/garage/SuspensionSpecCard';
+import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
+import { ErrorState } from '@/components/common/ErrorState';
 import MaintenanceLogScreen from '@/screens/MaintenanceLog';
 import { TiresTab } from '@/components/garage/TiresTab';
 import { ModsTab } from '@/components/garage/ModsTab';
 import { OwnershipTab } from '@/components/garage/OwnershipTab';
+import { EmptyState } from '@/components/common/EmptyState';
 import type { UpdateBikeRequest, SuspensionSpec, SuspensionEndSettings } from '@/api/types';
 
 type TabId = 'overview' | 'maintenance' | 'tires' | 'mods' | 'ownership' | 'sessions';
@@ -54,7 +57,7 @@ function SuspensionEndEditor({
                   [key]: e.target.value ? Number(e.target.value) : null,
                 })
               }
-              className="w-full px-2 py-1.5 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-2 py-1.5 min-h-[44px] border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
           </div>
         ))}
@@ -65,7 +68,7 @@ function SuspensionEndEditor({
 
 export default function BikeDetail() {
   const { id } = useParams<{ id: string }>();
-  const { data: bike, isLoading, isError } = useBike(id);
+  const { data: bike, isLoading, isError, refetch } = useBike(id);
   const updateBike = useUpdateBike();
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [editing, setEditing] = useState(false);
@@ -76,16 +79,21 @@ export default function BikeDetail() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Loading bike details...</p>
+      <div>
+        <div className="h-4 w-32 bg-gray-200 rounded animate-pulse mb-4" />
+        <div className="h-8 w-64 bg-gray-200 rounded animate-pulse mb-6" />
+        <LoadingSkeleton variant="lines" count={5} />
       </div>
     );
   }
 
   if (isError || !bike) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-red-500">Failed to load bike details.</p>
+      <div>
+        <Link to="/" className="text-sm text-blue-600 hover:text-blue-800 mb-4 inline-block">
+          &larr; Back to Garage
+        </Link>
+        <ErrorState message="Failed to load bike details." onRetry={() => refetch()} />
       </div>
     );
   }
@@ -129,14 +137,14 @@ export default function BikeDetail() {
   return (
     <div>
       {/* Back link */}
-      <Link to="/" className="text-sm text-blue-600 hover:text-blue-800 mb-4 inline-block">
+      <Link to="/" className="text-sm text-blue-600 hover:text-blue-800 mb-4 inline-block min-h-[44px] flex items-center">
         &larr; Back to Garage
       </Link>
 
       {/* Bike header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between mb-6 gap-3">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900" data-testid="bike-title">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900" data-testid="bike-title">
             {bike.year ? `${bike.year} ` : ''}
             {bike.make} {bike.model}
           </h2>
@@ -148,7 +156,7 @@ export default function BikeDetail() {
         {!editing && (
           <button
             onClick={startEdit}
-            className="px-4 py-2 text-sm font-medium text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors"
+            className="px-4 py-2 min-h-[44px] text-sm font-medium text-blue-600 border border-blue-600 rounded-lg hover:bg-blue-50 transition-colors self-start"
             data-testid="edit-button"
           >
             Edit
@@ -158,7 +166,7 @@ export default function BikeDetail() {
 
       {/* Stats bar */}
       {bike.stats && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
           <div className="bg-white rounded-lg border border-gray-200 p-3 text-center">
             <p className="text-2xl font-bold text-gray-900">{bike.stats.maintenance_count ?? 0}</p>
             <p className="text-xs text-gray-500">Maintenance</p>
@@ -182,14 +190,14 @@ export default function BikeDetail() {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="border-b border-gray-200 mb-6 overflow-x-auto">
-        <nav className="flex gap-0 -mb-px" data-testid="tab-nav">
+      {/* Tabs — horizontal scroll on mobile */}
+      <div className="border-b border-gray-200 mb-6 overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+        <nav className="flex gap-0 -mb-px whitespace-nowrap" data-testid="tab-nav">
           {TABS.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+              className={`px-4 py-2 min-h-[44px] text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
                 activeTab === tab.id
                   ? 'border-blue-600 text-blue-600'
                   : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -205,7 +213,7 @@ export default function BikeDetail() {
       {activeTab === 'overview' && (
         <div data-testid="overview-tab">
           {editing ? (
-            <div className="space-y-6" data-testid="edit-form">
+            <div className="space-y-6 max-w-2xl" data-testid="edit-form">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Make</label>
@@ -213,7 +221,7 @@ export default function BikeDetail() {
                     type="text"
                     value={editForm.make ?? ''}
                     onChange={(e) => setEditForm((f) => ({ ...f, make: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm"
                   />
                 </div>
                 <div>
@@ -222,7 +230,7 @@ export default function BikeDetail() {
                     type="text"
                     value={editForm.model ?? ''}
                     onChange={(e) => setEditForm((f) => ({ ...f, model: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm"
                   />
                 </div>
                 <div>
@@ -236,7 +244,7 @@ export default function BikeDetail() {
                         year: e.target.value ? Number(e.target.value) : null,
                       }))
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm"
                   />
                 </div>
                 <div>
@@ -245,7 +253,7 @@ export default function BikeDetail() {
                     type="text"
                     value={editForm.color ?? ''}
                     onChange={(e) => setEditForm((f) => ({ ...f, color: e.target.value || null }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm"
                   />
                 </div>
                 <div>
@@ -259,7 +267,7 @@ export default function BikeDetail() {
                         mileage_km: e.target.value ? Number(e.target.value) : null,
                       }))
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm"
                   />
                 </div>
                 <div>
@@ -272,7 +280,7 @@ export default function BikeDetail() {
                         status: e.target.value as UpdateBikeRequest['status'],
                       }))
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm"
                   >
                     <option value="owned">Owned</option>
                     <option value="sold">Sold</option>
@@ -286,7 +294,7 @@ export default function BikeDetail() {
                     type="text"
                     value={editForm.exhaust ?? ''}
                     onChange={(e) => setEditForm((f) => ({ ...f, exhaust: e.target.value || null }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm"
                   />
                 </div>
                 <div>
@@ -295,7 +303,7 @@ export default function BikeDetail() {
                     type="text"
                     value={editForm.ecu ?? ''}
                     onChange={(e) => setEditForm((f) => ({ ...f, ecu: e.target.value || null }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm"
                   />
                 </div>
                 <div>
@@ -309,7 +317,7 @@ export default function BikeDetail() {
                         gearing_front: e.target.value ? Number(e.target.value) : null,
                       }))
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm"
                   />
                 </div>
                 <div>
@@ -323,7 +331,7 @@ export default function BikeDetail() {
                         gearing_rear: e.target.value ? Number(e.target.value) : null,
                       }))
                     }
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm"
                   />
                 </div>
               </div>
@@ -334,7 +342,7 @@ export default function BikeDetail() {
                   value={editForm.notes ?? ''}
                   onChange={(e) => setEditForm((f) => ({ ...f, notes: e.target.value || null }))}
                   rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm"
                 />
               </div>
 
@@ -356,14 +364,14 @@ export default function BikeDetail() {
               <div className="flex justify-end gap-3">
                 <button
                   onClick={cancelEdit}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                  className="px-4 py-2 min-h-[44px] text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={saveEdit}
                   disabled={updateBike.isPending}
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  className="px-4 py-2 min-h-[44px] text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                   data-testid="save-button"
                 >
                   {updateBike.isPending ? 'Saving...' : 'Save Changes'}
@@ -459,9 +467,13 @@ export default function BikeDetail() {
 
       {activeTab === 'sessions' && (
         <div data-testid="sessions-tab">
-          <p className="text-gray-500 text-sm">Track sessions coming soon.</p>
+          <EmptyState
+            title="No sessions yet"
+            description="Track sessions for this bike will appear here."
+          />
         </div>
       )}
     </div>
   );
 }
+

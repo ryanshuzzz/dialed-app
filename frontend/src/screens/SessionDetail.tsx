@@ -16,6 +16,8 @@ import { SuggestionStream } from '@/components/session/SuggestionStream';
 import { TelemetryChart } from '@/components/telemetry/TelemetryChart';
 import { LapSelector } from '@/components/telemetry/LapSelector';
 import { ChannelToggle } from '@/components/telemetry/ChannelToggle';
+import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
+import { ErrorState } from '@/components/common/ErrorState';
 
 function formatLapTime(ms: number): string {
   const minutes = Math.floor(ms / 60000);
@@ -25,7 +27,7 @@ function formatLapTime(ms: number): string {
 
 export default function SessionDetail() {
   const { id } = useParams<{ id: string }>();
-  const { data: session, isLoading, error } = useSession(id);
+  const { data: session, isLoading, error, refetch } = useSession(id);
   const { data: changeLog } = useChangeLog(id);
 
   // Suggestion state
@@ -132,19 +134,26 @@ export default function SessionDetail() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Loading session...</p>
+      <div className="max-w-4xl mx-auto space-y-6">
+        <div className="h-8 w-48 bg-gray-200 rounded animate-pulse" />
+        <LoadingSkeleton variant="lines" count={4} />
+        <LoadingSkeleton variant="cards" count={2} />
       </div>
     );
   }
 
   if (error || !session) {
     return (
-      <div className="flex flex-col items-center justify-center h-64 gap-2">
-        <p className="text-red-500">Failed to load session.</p>
-        <Link to="/" className="text-blue-600 hover:underline text-sm">
-          Back to Garage
-        </Link>
+      <div className="max-w-4xl mx-auto">
+        <ErrorState
+          message="Failed to load session."
+          onRetry={() => refetch()}
+        />
+        <div className="text-center mt-4">
+          <Link to="/" className="text-blue-600 hover:underline text-sm">
+            Back to Garage
+          </Link>
+        </div>
       </div>
     );
   }
@@ -154,10 +163,10 @@ export default function SessionDetail() {
   return (
     <div className="max-w-4xl mx-auto space-y-6" data-testid="session-detail">
       {/* Header */}
-      <div className="flex items-start justify-between flex-wrap gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <div className="flex items-center gap-3 mb-1">
-            <h2 className="text-2xl font-bold">Session</h2>
+          <div className="flex items-center gap-3 mb-1 flex-wrap">
+            <h2 className="text-xl sm:text-2xl font-bold">Session</h2>
             <span
               className="px-3 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-700 capitalize"
               data-testid="session-type-badge"
@@ -170,7 +179,7 @@ export default function SessionDetail() {
           </p>
         </div>
         {bestLap != null && (
-          <div className="text-right">
+          <div className="sm:text-right">
             <p className="text-xs text-gray-400 uppercase tracking-wider">Best Lap</p>
             <p className="text-2xl font-bold text-green-600" data-testid="best-lap">
               {formatLapTime(bestLap)}
@@ -191,7 +200,7 @@ export default function SessionDetail() {
 
       {/* Tire Info */}
       {(session.tire_front || session.tire_rear) && (
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {session.tire_front && (
             <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
               <h4 className="text-xs font-semibold text-gray-500 uppercase mb-1">Front Tire</h4>
@@ -227,7 +236,7 @@ export default function SessionDetail() {
           <p className="text-sm text-gray-400">No changes recorded for this session.</p>
         ) : (
           <div
-            className="bg-white rounded-lg border border-gray-200 p-4"
+            className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4"
             data-testid="change-log"
           >
             {(changeLog ?? session.changes ?? []).map((change) => (
@@ -239,12 +248,12 @@ export default function SessionDetail() {
 
       {/* Suggestions */}
       <div>
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-3">
           <h3 className="text-lg font-semibold text-gray-800">AI Suggestions</h3>
           <button
             onClick={handleRequestSuggestion}
             disabled={requestSuggestion.isPending || isStreaming}
-            className="px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+            className="px-4 py-2 min-h-[44px] bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors self-start sm:self-auto"
             data-testid="request-suggestion-button"
           >
             {requestSuggestion.isPending ? 'Requesting...' : 'Get AI Suggestion'}
@@ -265,7 +274,7 @@ export default function SessionDetail() {
               <button
                 key={s.id}
                 onClick={() => setActiveSuggestionId(s.id)}
-                className={`w-full text-left p-3 rounded-lg border transition-colors ${
+                className={`w-full text-left p-3 min-h-[44px] rounded-lg border transition-colors ${
                   activeSuggestionId === s.id
                     ? 'border-purple-300 bg-purple-50'
                     : 'border-gray-200 bg-white hover:bg-gray-50'
@@ -324,10 +333,12 @@ export default function SessionDetail() {
               />
             )}
 
-            <TelemetryChart
-              points={lapData?.points ?? []}
-              activeChannels={activeChannels}
-            />
+            <div className="w-full overflow-x-auto">
+              <TelemetryChart
+                points={lapData?.points ?? []}
+                activeChannels={activeChannels}
+              />
+            </div>
           </div>
         </div>
       )}

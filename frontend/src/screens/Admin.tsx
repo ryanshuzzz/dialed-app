@@ -5,6 +5,9 @@ import {
   useUpdateChannelAlias,
   useDeleteChannelAlias,
 } from '@/hooks/useAdmin';
+import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
+import { ErrorState } from '@/components/common/ErrorState';
+import { EmptyState } from '@/components/common/EmptyState';
 
 interface EditState {
   raw_name: string;
@@ -13,7 +16,7 @@ interface EditState {
 }
 
 export default function Admin() {
-  const { data: aliases, isLoading } = useChannelAliases();
+  const { data: aliases, isLoading, isError, refetch } = useChannelAliases();
   const createAlias = useCreateChannelAlias();
   const updateAlias = useUpdateChannelAlias();
   const deleteAlias = useDeleteChannelAlias();
@@ -87,8 +90,18 @@ export default function Admin() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Loading channel aliases...</p>
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold">Admin - Channel Aliases</h2>
+        <LoadingSkeleton variant="table" count={4} />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="space-y-6">
+        <h2 className="text-2xl font-bold">Admin - Channel Aliases</h2>
+        <ErrorState message="Failed to load channel aliases." onRetry={() => refetch()} />
       </div>
     );
   }
@@ -108,7 +121,7 @@ export default function Admin() {
           placeholder="Raw name"
           value={newRawName}
           onChange={(e) => setNewRawName(e.target.value)}
-          className="border border-gray-300 rounded-md px-3 py-2 text-sm flex-1"
+          className="border border-gray-300 rounded-md px-3 py-2 min-h-[44px] text-sm flex-1"
           data-testid="new-raw-name"
         />
         <input
@@ -116,7 +129,7 @@ export default function Admin() {
           placeholder="Canonical name"
           value={newCanonicalName}
           onChange={(e) => setNewCanonicalName(e.target.value)}
-          className="border border-gray-300 rounded-md px-3 py-2 text-sm flex-1"
+          className="border border-gray-300 rounded-md px-3 py-2 min-h-[44px] text-sm flex-1"
           data-testid="new-canonical-name"
         />
         <input
@@ -124,13 +137,13 @@ export default function Admin() {
           placeholder="Logger model (optional)"
           value={newLoggerModel}
           onChange={(e) => setNewLoggerModel(e.target.value)}
-          className="border border-gray-300 rounded-md px-3 py-2 text-sm flex-1"
+          className="border border-gray-300 rounded-md px-3 py-2 min-h-[44px] text-sm flex-1"
           data-testid="new-logger-model"
         />
         <button
           type="submit"
           disabled={createAlias.isPending || !newRawName.trim() || !newCanonicalName.trim()}
-          className="bg-blue-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+          className="bg-blue-600 text-white px-4 py-2 min-h-[44px] rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
           data-testid="add-alias-btn"
         >
           Add
@@ -138,122 +151,122 @@ export default function Admin() {
       </form>
 
       {/* Alias Table */}
-      <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
-        <table className="w-full text-sm" data-testid="alias-table">
-          <thead>
-            <tr className="border-b border-gray-200 bg-gray-50">
-              <th className="px-4 py-3 text-left font-medium text-gray-600">Raw Name</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-600">Canonical Name</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-600">Logger Model</th>
-              <th className="px-4 py-3 text-left font-medium text-gray-600">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {aliases?.map((alias) => (
-              <tr key={alias.id} className="border-b border-gray-100 hover:bg-gray-50">
-                {editingId === alias.id ? (
-                  <>
-                    <td className="px-4 py-2">
-                      <input
-                        type="text"
-                        value={editState.raw_name}
-                        onChange={(e) => setEditState((s) => ({ ...s, raw_name: e.target.value }))}
-                        className="border border-gray-300 rounded px-2 py-1 text-sm w-full"
-                        data-testid="edit-raw-name"
-                      />
-                    </td>
-                    <td className="px-4 py-2">
-                      <input
-                        type="text"
-                        value={editState.canonical_name}
-                        onChange={(e) => setEditState((s) => ({ ...s, canonical_name: e.target.value }))}
-                        className="border border-gray-300 rounded px-2 py-1 text-sm w-full"
-                        data-testid="edit-canonical-name"
-                      />
-                    </td>
-                    <td className="px-4 py-2">
-                      <input
-                        type="text"
-                        value={editState.logger_model}
-                        onChange={(e) => setEditState((s) => ({ ...s, logger_model: e.target.value }))}
-                        className="border border-gray-300 rounded px-2 py-1 text-sm w-full"
-                        data-testid="edit-logger-model"
-                      />
-                    </td>
-                    <td className="px-4 py-2">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={handleSaveEdit}
-                          className="text-blue-600 text-sm font-medium hover:underline"
-                          data-testid="save-edit-btn"
-                        >
-                          Save
-                        </button>
-                        <button
-                          onClick={() => setEditingId(null)}
-                          className="text-gray-500 text-sm hover:underline"
-                          data-testid="cancel-edit-btn"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </td>
-                  </>
-                ) : (
-                  <>
-                    <td className="px-4 py-3">{alias.raw_name}</td>
-                    <td className="px-4 py-3">{alias.canonical_name}</td>
-                    <td className="px-4 py-3 text-gray-500">{alias.logger_model ?? '-'}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => startEdit(alias)}
-                          className="text-blue-600 text-sm hover:underline"
-                          data-testid={`edit-${alias.id}`}
-                        >
-                          Edit
-                        </button>
-                        {deleteConfirmId === alias.id ? (
-                          <>
-                            <button
-                              onClick={() => handleDelete(alias.id)}
-                              className="text-red-600 text-sm font-medium hover:underline"
-                              data-testid={`confirm-delete-${alias.id}`}
-                            >
-                              Confirm
-                            </button>
-                            <button
-                              onClick={() => setDeleteConfirmId(null)}
-                              className="text-gray-500 text-sm hover:underline"
-                            >
-                              Cancel
-                            </button>
-                          </>
-                        ) : (
+      {aliases && aliases.length > 0 ? (
+        <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+          <table className="w-full text-sm" data-testid="alias-table">
+            <thead>
+              <tr className="border-b border-gray-200 bg-gray-50">
+                <th className="px-3 sm:px-4 py-3 text-left font-medium text-gray-600">Raw Name</th>
+                <th className="px-3 sm:px-4 py-3 text-left font-medium text-gray-600">Canonical Name</th>
+                <th className="px-3 sm:px-4 py-3 text-left font-medium text-gray-600 hidden sm:table-cell">Logger Model</th>
+                <th className="px-3 sm:px-4 py-3 text-left font-medium text-gray-600">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {aliases.map((alias) => (
+                <tr key={alias.id} className="border-b border-gray-100 hover:bg-gray-50">
+                  {editingId === alias.id ? (
+                    <>
+                      <td className="px-3 sm:px-4 py-2">
+                        <input
+                          type="text"
+                          value={editState.raw_name}
+                          onChange={(e) => setEditState((s) => ({ ...s, raw_name: e.target.value }))}
+                          className="border border-gray-300 rounded px-2 py-1 min-h-[44px] text-sm w-full"
+                          data-testid="edit-raw-name"
+                        />
+                      </td>
+                      <td className="px-3 sm:px-4 py-2">
+                        <input
+                          type="text"
+                          value={editState.canonical_name}
+                          onChange={(e) => setEditState((s) => ({ ...s, canonical_name: e.target.value }))}
+                          className="border border-gray-300 rounded px-2 py-1 min-h-[44px] text-sm w-full"
+                          data-testid="edit-canonical-name"
+                        />
+                      </td>
+                      <td className="px-3 sm:px-4 py-2 hidden sm:table-cell">
+                        <input
+                          type="text"
+                          value={editState.logger_model}
+                          onChange={(e) => setEditState((s) => ({ ...s, logger_model: e.target.value }))}
+                          className="border border-gray-300 rounded px-2 py-1 min-h-[44px] text-sm w-full"
+                          data-testid="edit-logger-model"
+                        />
+                      </td>
+                      <td className="px-3 sm:px-4 py-2">
+                        <div className="flex gap-2">
                           <button
-                            onClick={() => setDeleteConfirmId(alias.id)}
-                            className="text-red-500 text-sm hover:underline"
-                            data-testid={`delete-${alias.id}`}
+                            onClick={handleSaveEdit}
+                            className="text-blue-600 text-sm font-medium hover:underline min-h-[44px] flex items-center"
+                            data-testid="save-edit-btn"
                           >
-                            Delete
+                            Save
                           </button>
-                        )}
-                      </div>
-                    </td>
-                  </>
-                )}
-              </tr>
-            ))}
-            {aliases?.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-gray-500">
-                  No channel aliases configured.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+                          <button
+                            onClick={() => setEditingId(null)}
+                            className="text-gray-500 text-sm hover:underline min-h-[44px] flex items-center"
+                            data-testid="cancel-edit-btn"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td className="px-3 sm:px-4 py-3">{alias.raw_name}</td>
+                      <td className="px-3 sm:px-4 py-3">{alias.canonical_name}</td>
+                      <td className="px-3 sm:px-4 py-3 text-gray-500 hidden sm:table-cell">{alias.logger_model ?? '-'}</td>
+                      <td className="px-3 sm:px-4 py-3">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => startEdit(alias)}
+                            className="text-blue-600 text-sm hover:underline min-h-[44px] flex items-center"
+                            data-testid={`edit-${alias.id}`}
+                          >
+                            Edit
+                          </button>
+                          {deleteConfirmId === alias.id ? (
+                            <>
+                              <button
+                                onClick={() => handleDelete(alias.id)}
+                                className="text-red-600 text-sm font-medium hover:underline min-h-[44px] flex items-center"
+                                data-testid={`confirm-delete-${alias.id}`}
+                              >
+                                Confirm
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirmId(null)}
+                                className="text-gray-500 text-sm hover:underline min-h-[44px] flex items-center"
+                              >
+                                Cancel
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              onClick={() => setDeleteConfirmId(alias.id)}
+                              className="text-red-500 text-sm hover:underline min-h-[44px] flex items-center"
+                              data-testid={`delete-${alias.id}`}
+                            >
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <EmptyState
+          title="No channel aliases"
+          description="Add your first channel alias to map AiM column names to canonical names."
+        />
+      )}
     </div>
   );
 }

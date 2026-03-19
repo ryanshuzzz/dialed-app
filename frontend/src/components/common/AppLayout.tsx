@@ -99,8 +99,8 @@ export function AppLayout() {
           />
         )}
 
-        {/* Main content */}
-        <main className="flex-1 p-4 md:p-6 min-h-screen">
+        {/* Main content — extra bottom padding on mobile for bottom nav */}
+        <main className="flex-1 p-4 md:p-6 min-h-screen pb-20 md:pb-6">
           <Outlet />
         </main>
       </div>

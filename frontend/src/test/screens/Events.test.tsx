@@ -268,6 +268,6 @@ describe('Events screen', () => {
   it('shows loading state', () => {
     fetchSpy.mockReturnValue(new Promise(() => {}));
     renderWithProviders(<Events />);
-    expect(screen.getByText('Loading events...')).toBeInTheDocument();
+    expect(screen.getByTestId('loading-skeleton')).toBeInTheDocument();
   });
 });

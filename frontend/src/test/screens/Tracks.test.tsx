@@ -174,6 +174,6 @@ describe('Tracks screen', () => {
   it('shows loading state', () => {
     fetchSpy.mockReturnValueOnce(new Promise(() => {}));
     renderWithProviders(<Tracks />);
-    expect(screen.getByText('Loading tracks...')).toBeInTheDocument();
+    expect(screen.getByTestId('loading-skeleton')).toBeInTheDocument();
   });
 });

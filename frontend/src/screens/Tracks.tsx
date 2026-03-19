@@ -2,6 +2,8 @@ import { useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useTracks, useCreateTrack } from '@/hooks/useTracks';
 import { EmptyState } from '@/components/common/EmptyState';
+import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
+import { ErrorState } from '@/components/common/ErrorState';
 import { Modal } from '@/components/common/Modal';
 import type { CreateTrackRequest } from '@/api/types';
 
@@ -12,7 +14,7 @@ const INITIAL_FORM: CreateTrackRequest = {
 };
 
 export default function Tracks() {
-  const { data: tracks, isLoading, isError } = useTracks();
+  const { data: tracks, isLoading, isError, refetch } = useTracks();
   const createTrack = useCreateTrack();
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState<CreateTrackRequest>({ ...INITIAL_FORM });
@@ -38,16 +40,22 @@ export default function Tracks() {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-gray-500">Loading tracks...</p>
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">Tracks</h2>
+        </div>
+        <LoadingSkeleton variant="cards" count={3} />
       </div>
     );
   }
 
   if (isError) {
     return (
-      <div className="flex items-center justify-center h-64">
-        <p className="text-red-500">Failed to load tracks. Please try again.</p>
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-gray-900">Tracks</h2>
+        </div>
+        <ErrorState message="Failed to load tracks. Please try again." onRetry={() => refetch()} />
       </div>
     );
   }
@@ -58,7 +66,7 @@ export default function Tracks() {
         <h2 className="text-2xl font-bold text-gray-900">Tracks</h2>
         <button
           onClick={() => setShowAdd(true)}
-          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          className="px-4 py-2 min-h-[44px] bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
           data-testid="add-track-button"
         >
           Add Track
@@ -72,14 +80,14 @@ export default function Tracks() {
             placeholder="Search tracks..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full max-w-sm px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full md:max-w-sm px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             data-testid="track-search"
           />
         </div>
       )}
 
       {filteredTracks.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="track-grid">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="track-grid">
           {filteredTracks.map((track) => (
             <Link
               key={track.id}
@@ -120,7 +128,7 @@ export default function Tracks() {
                 required
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="e.g. Mugello"
               />
             </div>
@@ -134,7 +142,7 @@ export default function Tracks() {
                 type="text"
                 value={form.config ?? ''}
                 onChange={(e) => setForm((f) => ({ ...f, config: e.target.value || null }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="e.g. Full Circuit, Short Course"
               />
             </div>
@@ -148,7 +156,7 @@ export default function Tracks() {
                 rows={3}
                 value={form.surface_notes ?? ''}
                 onChange={(e) => setForm((f) => ({ ...f, surface_notes: e.target.value || null }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Surface type, grip conditions, etc."
               />
             </div>
@@ -158,14 +166,14 @@ export default function Tracks() {
             <button
               type="button"
               onClick={() => setShowAdd(false)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              className="px-4 py-2 min-h-[44px] text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={createTrack.isPending}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="px-4 py-2 min-h-[44px] text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
               {createTrack.isPending ? 'Adding...' : 'Add Track'}
             </button>
