@@ -3,6 +3,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci --legacy-peer-deps
 COPY . .
+ENV VITE_ENABLE_MOCKS=false
 RUN npm run build
 
 FROM nginx:alpine
