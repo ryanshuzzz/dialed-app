@@ -76,3 +76,46 @@ export async function apiClient<T>(
 
   return response.json() as Promise<T>;
 }
+
+/** GET helper */
+export function apiGet<T>(endpoint: string): Promise<T> {
+  return apiClient<T>(endpoint, { method: 'GET' });
+}
+
+/** POST helper with JSON body */
+export function apiPost<T>(endpoint: string, body?: unknown): Promise<T> {
+  return apiClient<T>(endpoint, {
+    method: 'POST',
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+}
+
+/** PATCH helper with JSON body */
+export function apiPatch<T>(endpoint: string, body?: unknown): Promise<T> {
+  return apiClient<T>(endpoint, {
+    method: 'PATCH',
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+}
+
+/** PUT helper with JSON body */
+export function apiPut<T>(endpoint: string, body?: unknown): Promise<T> {
+  return apiClient<T>(endpoint, {
+    method: 'PUT',
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+}
+
+/** DELETE helper */
+export function apiDelete<T = void>(endpoint: string): Promise<T> {
+  return apiClient<T>(endpoint, { method: 'DELETE' });
+}
+
+/** POST helper for multipart/form-data uploads */
+export function apiUpload<T>(endpoint: string, formData: FormData): Promise<T> {
+  return apiClient<T>(endpoint, {
+    method: 'POST',
+    body: formData,
+    // Do NOT set Content-Type — browser sets it with boundary for FormData
+  });
+}

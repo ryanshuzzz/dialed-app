@@ -5,14 +5,12 @@ import { useUiStore } from '@/stores/uiStore';
 import type { UserProfile } from '@/api/types';
 
 const mockUser: UserProfile = {
-  id: 'user-1',
+  user_id: 'user-1',
   email: 'rider@dialed.app',
   display_name: 'Test Rider',
   rider_type: 'casual_track',
   skill_level: 'intermediate',
   units: 'imperial',
-  created_at: '2025-01-01T00:00:00Z',
-  updated_at: '2025-01-01T00:00:00Z',
 };
 
 describe('authStore', () => {
