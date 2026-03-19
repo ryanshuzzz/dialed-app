@@ -12,7 +12,7 @@ from dialed_shared.auth import get_current_user
 from schemas.auth import (
     ApiKeyCreateRequest,
     ApiKeyCreateResponse,
-    ApiKeyListResponse,
+    ApiKeySummary,
     LoginRequest,
     RefreshRequest,
     RefreshResponse,
@@ -71,11 +71,11 @@ async def update_profile(
 # ── API Keys ──
 
 
-@router.get("/me/api-keys", response_model=ApiKeyListResponse)
+@router.get("/me/api-keys", response_model=list[ApiKeySummary])
 async def list_api_keys(
     user: dict = Depends(get_current_user),
     session: AsyncSession = Depends(get_session),
-) -> ApiKeyListResponse:
+) -> list[ApiKeySummary]:
     return await AuthService.list_api_keys(session, uuid.UUID(user["user_id"]))
 
 

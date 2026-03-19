@@ -25,7 +25,6 @@ from models.user_api_key import UserApiKey
 from schemas.auth import (
     ApiKeyCreateRequest,
     ApiKeyCreateResponse,
-    ApiKeyListResponse,
     ApiKeySummary,
     RegisterRequest,
     TokenResponse,
@@ -250,7 +249,7 @@ class AuthService:
     async def list_api_keys(
         session: AsyncSession,
         user_id: uuid.UUID,
-    ) -> ApiKeyListResponse:
+    ) -> list[ApiKeySummary]:
         result = await session.execute(
             select(UserApiKey)
             .where(UserApiKey.user_id == user_id)
@@ -258,21 +257,17 @@ class AuthService:
         )
         keys = result.scalars().all()
 
-        items = []
-        for k in keys:
-            preview = f"...{k.key_hash[-4:]}" if k.key_hash else ""
-            items.append(
-                ApiKeySummary(
-                    id=k.id,
-                    name=k.name,
-                    key_preview=preview,
-                    last_used_at=k.last_used_at,
-                    expires_at=k.expires_at,
-                    created_at=k.created_at,
-                )
+        return [
+            ApiKeySummary(
+                id=k.id,
+                name=k.name,
+                key_preview=f"...{k.key_hash[-4:]}" if k.key_hash else "",
+                last_used_at=k.last_used_at,
+                expires_at=k.expires_at,
+                created_at=k.created_at,
             )
-
-        return ApiKeyListResponse(items=items)
+            for k in keys
+        ]
 
     @staticmethod
     async def delete_api_key(

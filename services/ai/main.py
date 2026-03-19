@@ -16,7 +16,6 @@ from dialed_shared import (
 )
 
 from routers import suggest
-from sse import router as sse_router
 
 logger = setup_logger("ai")
 
@@ -33,7 +32,6 @@ def create_app() -> FastAPI:
     app.include_router(create_health_router("ai"))
 
     app.include_router(suggest.router)
-    app.include_router(sse_router)
 
     logger.info("AI service ready on port 8003")
     return app
