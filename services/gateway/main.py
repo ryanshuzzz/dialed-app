@@ -100,28 +100,18 @@ def create_app() -> FastAPI:
         auth_header = request.headers.get("authorization", "")
         if auth_header.startswith("Bearer "):
             bearer_token = auth_header[7:]
-            # For auth routes (register/login), pass through directly
-            # For other routes, we sign an internal token
-            prefix = path.split("/")[0]
-            if prefix != "auth":
-                # Validate the bearer token by decoding it (core-api issued it)
-                # For dev: trust the token and extract user_id via core-api
-                # Create internal token with the bearer token as user context
-                try:
-                    from jose import jwt as jose_jwt
+            try:
+                from jose import jwt as jose_jwt
 
-                    # Core-api signs tokens with INTERNAL_SECRET
-                    payload = jose_jwt.decode(
-                        bearer_token, INTERNAL_SECRET, algorithms=["HS256"]
-                    )
-                    user_id = payload.get("user_id", "")
-                    internal_token = create_internal_token(user_id, INTERNAL_SECRET)
-                    headers["x-internal-token"] = internal_token
-                except Exception:
-                    # If token decode fails, still forward — let the service reject it
-                    headers["x-internal-token"] = bearer_token
-            else:
-                # Auth routes: forward bearer as internal token too
+                # Core-api signs tokens with INTERNAL_SECRET, user_id in "sub" claim
+                payload = jose_jwt.decode(
+                    bearer_token, INTERNAL_SECRET, algorithms=["HS256"]
+                )
+                user_id = payload.get("sub") or payload.get("user_id", "")
+                internal_token = create_internal_token(user_id, INTERNAL_SECRET)
+                headers["x-internal-token"] = internal_token
+            except Exception:
+                # If token decode fails, still forward — let the service reject it
                 headers["x-internal-token"] = bearer_token
 
         body = await request.body()
