@@ -2,18 +2,23 @@
 
 import asyncio
 import os
+import sys
+from pathlib import Path
+
+# Ensure the service root (/app) is on sys.path so models can be imported
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from alembic import context
 from sqlalchemy import pool, text
 from sqlalchemy.ext.asyncio import create_async_engine
 
-# Import all models so metadata is populated
+# Import models that live on regular Postgres (ingestion_jobs, lap_segments).
+# telemetry_points lives on TimescaleDB and is NOT managed by Alembic.
 from models.ingestion_job import Base as IngestionBase
 from models.lap_segment import Base as LapBase
-from models.telemetry_point import Base as TelemetryBase
 
-# Combine metadata from all model bases
-target_metadata = [IngestionBase.metadata, LapBase.metadata, TelemetryBase.metadata]
+# Only include metadata for tables on DATABASE_URL (regular Postgres)
+target_metadata = [IngestionBase.metadata, LapBase.metadata]
 
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",

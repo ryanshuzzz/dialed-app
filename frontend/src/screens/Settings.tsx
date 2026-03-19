@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   useProfile,
   useUpdateProfile,
@@ -7,17 +8,20 @@ import {
   useDeleteApiKey,
 } from '@/hooks/useAuth';
 import { useUiStore } from '@/stores/uiStore';
+import { useAuthStore } from '@/stores/authStore';
 import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
 import { ErrorState } from '@/components/common/ErrorState';
 import type { UserProfile } from '@/api/types';
 
 export default function Settings() {
+  const navigate = useNavigate();
   const { data: profile, isLoading: profileLoading, isError: profileError, refetch: refetchProfile } = useProfile();
   const updateProfile = useUpdateProfile();
   const { data: apiKeys, isLoading: keysLoading } = useApiKeys();
   const createKey = useCreateApiKey();
   const deleteKey = useDeleteApiKey();
   const setRiderType = useUiStore((s) => s.setRiderType);
+  const logout = useAuthStore((s) => s.logout);
 
   // Local form state
   const [displayName, setDisplayName] = useState<string>('');
@@ -81,6 +85,11 @@ export default function Settings() {
         setDeleteConfirmId(null);
       },
     });
+  }
+
+  function handleLogout() {
+    logout();
+    navigate('/login', { replace: true });
   }
 
   function maskKey(id: string): string {
@@ -295,6 +304,20 @@ export default function Settings() {
             </form>
           </div>
         )}
+      </section>
+      {/* Account Section */}
+      <section className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
+        <h3 className="text-lg font-semibold mb-4">Account</h3>
+        <p className="text-sm text-gray-500 mb-4">
+          Signing out will clear your session. You can sign back in at any time.
+        </p>
+        <button
+          onClick={handleLogout}
+          className="bg-red-600 text-white px-4 py-2 min-h-[44px] rounded-md text-sm font-medium hover:bg-red-700 transition-colors"
+          data-testid="logout-btn"
+        >
+          Sign Out
+        </button>
       </section>
     </div>
   );

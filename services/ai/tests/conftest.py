@@ -16,16 +16,47 @@ from rules_engine import Flag
 from services.context_gatherer import SessionContext
 
 
+# ── Strip schema for SQLite ──
+# SQLite doesn't support schemas. We strip them globally at import time
+# so all ORM operations (CREATE, INSERT, SELECT) work without "ai." prefix.
+
+_schema_stripped = False
+
+
+def _strip_schemas():
+    """Remove 'ai' schema from all model tables for SQLite compatibility."""
+    global _schema_stripped
+    if _schema_stripped:
+        return
+    for table in Base.metadata.sorted_tables:
+        table.schema = None
+        for fk in table.foreign_keys:
+            if isinstance(fk._colspec, str) and fk._colspec.startswith("ai."):
+                fk._colspec = fk._colspec[3:]
+    _schema_stripped = True
+
+
+_strip_schemas()
+
+
 # ── Test database ──
 
 
 TEST_DATABASE_URL = "sqlite+aiosqlite:///:memory:"
 
 
+def _register_sqlite_functions(dbapi_conn, connection_record):
+    """Register PostgreSQL-compatible functions for SQLite."""
+    dbapi_conn.create_function("gen_random_uuid", 0, lambda: str(uuid.uuid4()))
+
+
 @pytest_asyncio.fixture
 async def db_engine():
     """Create a test database engine with all tables."""
+    from sqlalchemy import event as sa_event
+
     engine = create_async_engine(TEST_DATABASE_URL, echo=False)
+    sa_event.listen(engine.sync_engine, "connect", _register_sqlite_functions)
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield engine

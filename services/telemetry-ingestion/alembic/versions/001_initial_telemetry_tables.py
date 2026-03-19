@@ -1,4 +1,7 @@
-"""Initial telemetry tables: telemetry_points, lap_segments, ingestion_jobs.
+"""Initial telemetry tables: lap_segments, ingestion_jobs (regular Postgres only).
+
+telemetry_points is a TimescaleDB hypertable and is created separately at startup
+via ensure_timescale_schema() in main.py against TIMESCALE_URL.
 
 Revision ID: 001
 Revises: None
@@ -19,51 +22,20 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.execute("CREATE SCHEMA IF NOT EXISTS telemetry")
 
-    # -- Enums --
-    ingestion_source = sa.Enum(
-        "csv", "ocr", "voice", name="ingestion_source", schema="telemetry"
+    # -- Enums (use raw SQL for IF NOT EXISTS) --
+    op.execute(
+        "DO $$ BEGIN "
+        "CREATE TYPE telemetry.ingestion_source AS ENUM ('csv', 'ocr', 'voice'); "
+        "EXCEPTION WHEN duplicate_object THEN NULL; END $$"
     )
-    ingestion_source.create(op.get_bind(), checkfirst=True)
-
-    ingestion_status = sa.Enum(
-        "pending", "processing", "complete", "failed",
-        name="ingestion_status", schema="telemetry",
-    )
-    ingestion_status.create(op.get_bind(), checkfirst=True)
-
-    # -- telemetry_points (TimescaleDB hypertable) --
-    op.create_table(
-        "telemetry_points",
-        sa.Column("time", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("session_id", UUID(as_uuid=True), nullable=False),
-        sa.Column("gps_speed", sa.Double, nullable=True),
-        sa.Column("throttle_pos", sa.Double, nullable=True),
-        sa.Column("rpm", sa.Double, nullable=True),
-        sa.Column("gear", sa.SmallInteger, nullable=True),
-        sa.Column("lean_angle", sa.Double, nullable=True),
-        sa.Column("front_brake_psi", sa.Double, nullable=True),
-        sa.Column("rear_brake_psi", sa.Double, nullable=True),
-        sa.Column("fork_position", sa.Double, nullable=True),
-        sa.Column("shock_position", sa.Double, nullable=True),
-        sa.Column("coolant_temp", sa.Double, nullable=True),
-        sa.Column("oil_temp", sa.Double, nullable=True),
-        sa.Column("lat", sa.Double, nullable=True),
-        sa.Column("lon", sa.Double, nullable=True),
-        sa.Column("extra_channels", JSONB, nullable=False, server_default=sa.text("'{}'::jsonb")),
-        sa.PrimaryKeyConstraint("time", "session_id"),
-        schema="telemetry",
+    op.execute(
+        "DO $$ BEGIN "
+        "CREATE TYPE telemetry.ingestion_status AS ENUM ('pending', 'processing', 'complete', 'failed'); "
+        "EXCEPTION WHEN duplicate_object THEN NULL; END $$"
     )
 
-    # Convert to TimescaleDB hypertable
-    op.execute("SELECT create_hypertable('telemetry.telemetry_points', 'time')")
-
-    # Composite index for session-scoped time-ordered queries
-    op.create_index(
-        "ix_telemetry_points_session_time",
-        "telemetry_points",
-        ["session_id", "time"],
-        schema="telemetry",
-    )
+    # NOTE: telemetry_points is NOT created here.
+    # It lives on TimescaleDB (TIMESCALE_URL) and is provisioned at startup.
 
     # -- lap_segments --
     op.create_table(
@@ -81,27 +53,25 @@ def upgrade() -> None:
         schema="telemetry",
     )
 
-    # -- ingestion_jobs --
-    op.create_table(
-        "ingestion_jobs",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")),
-        sa.Column("session_id", UUID(as_uuid=True), nullable=False),
-        sa.Column("source", ingestion_source, nullable=False),
-        sa.Column("status", ingestion_status, nullable=False, server_default=sa.text("'pending'")),
-        sa.Column("result", JSONB, nullable=True),
-        sa.Column("error_message", sa.String, nullable=True),
-        sa.Column("confidence", sa.Double, nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
-        schema="telemetry",
-    )
+    # -- ingestion_jobs (use raw SQL column types to avoid double-create of enums) --
+    op.execute("""
+        CREATE TABLE telemetry.ingestion_jobs (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            session_id UUID NOT NULL,
+            source telemetry.ingestion_source NOT NULL,
+            status telemetry.ingestion_status NOT NULL DEFAULT 'pending',
+            result JSONB,
+            error_message VARCHAR,
+            confidence DOUBLE PRECISION,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            completed_at TIMESTAMPTZ
+        )
+    """)
 
 
 def downgrade() -> None:
     op.drop_table("ingestion_jobs", schema="telemetry")
     op.drop_table("lap_segments", schema="telemetry")
-    op.drop_index("ix_telemetry_points_session_time", table_name="telemetry_points", schema="telemetry")
-    op.drop_table("telemetry_points", schema="telemetry")
 
     op.execute("DROP TYPE IF EXISTS telemetry.ingestion_status")
     op.execute("DROP TYPE IF EXISTS telemetry.ingestion_source")

@@ -1,9 +1,7 @@
 """Event domain schemas — track day events with weather/surface conditions."""
 
-from __future__ import annotations
-
+import datetime as _dt
 import uuid
-from datetime import date, datetime
 from enum import Enum
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -51,7 +49,7 @@ class EventCreate(BaseModel):
 
     bike_id: uuid.UUID
     track_id: uuid.UUID
-    date: date
+    date: _dt.date
     conditions: ConditionsModel | None = None
 
 
@@ -60,7 +58,7 @@ class EventUpdate(BaseModel):
 
     bike_id: uuid.UUID | None = None
     track_id: uuid.UUID | None = None
-    date: date | None = None
+    date: _dt.date | None = None
     conditions: ConditionsModel | None = None
 
 
@@ -76,10 +74,10 @@ class EventResponse(BaseModel):
     user_id: uuid.UUID
     bike_id: uuid.UUID
     track_id: uuid.UUID
-    date: date
+    date: _dt.date
     conditions: ConditionsModel
-    created_at: datetime
-    updated_at: datetime
+    created_at: _dt.datetime
+    updated_at: _dt.datetime
 
 
 class EventListResponse(BaseModel):
