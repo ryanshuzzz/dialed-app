@@ -1,3 +1,8 @@
+---
+name: frontend
+description: Agent for the Dialed frontend — React 19 + TypeScript PWA, Garage/session/progress screens, SSE integration, offline queue, and MSW mocks.
+---
+
 # Agent: Frontend
 
 > Read `CLAUDE.md` (master context) first. This file has your service-specific instructions.

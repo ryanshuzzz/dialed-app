@@ -1,3 +1,8 @@
+---
+name: telemetry-ingestion
+description: Agent for the Dialed Telemetry/Ingestion service — CSV/OCR/voice ingestion pipelines, TimescaleDB hypertable, downsampling, analysis (braking zones, fork rebound, TCS), and SSE job completion.
+---
+
 # Agent: Telemetry/Ingestion
 
 > Read `CLAUDE.md` (master context) first. This file has your service-specific instructions.

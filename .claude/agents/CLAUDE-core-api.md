@@ -1,3 +1,8 @@
+---
+name: core-api
+description: Agent for the Dialed Core API service — auth, garage (bikes, maintenance, tires, mods, ownership), tracks, events, sessions, setup snapshots, change log, progress, and admin.
+---
+
 # Agent: Core API
 
 > Read `CLAUDE.md` (master context) first. This file has your service-specific instructions.

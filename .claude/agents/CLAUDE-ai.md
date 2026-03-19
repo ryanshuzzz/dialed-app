@@ -1,3 +1,8 @@
+---
+name: ai-service
+description: Agent for the Dialed AI service — suggestion generation, rules engine, SSE streaming, change tracking, and Claude API integration.
+---
+
 # Agent: AI
 
 > Read `CLAUDE.md` (master context) first. This file has your service-specific instructions.
