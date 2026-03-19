@@ -11,7 +11,7 @@
 | Step 1 — Merge Core API | **DONE** | 110/110 tests pass. 16 tables created. /health 200. Fixes: email-validator dep, alembic sys.path, test deps in Dockerfile. |
 | Step 2 — Merge Telemetry/Ingestion | **DONE** | 95/95 tests pass. Tables: ingestion_jobs, lap_segments (Postgres) + telemetry_points hypertable (TimescaleDB). Inter-service to core-api OK. Fixes: python-multipart dep, dual-DB migration split, enum creation fix. |
 | Step 3 — Merge AI | **DONE** | 121/121 tests pass (all Claude API mocked). Tables: suggestions, suggestion_changes, generation_jobs. Inter-service to core-api + telemetry OK. Redis OK. Fixes: alembic sys.path, respx dep, test deps in Dockerfile. |
-| Step 4 — Merge Frontend + Gateway | Not started | |
+| Step 4 — Merge Frontend + Gateway | **DONE** | All 8 containers healthy. Gateway proxying correctly (401s not 502s). Frontend serving on :5173. Fixes: implemented gateway proxy, npm --legacy-peer-deps for vite-plugin-pwa compat. |
 | Step 5 — End-to-end user flow | Not started | |
 | Step 6 — Final tests + tag | Not started | |
 
