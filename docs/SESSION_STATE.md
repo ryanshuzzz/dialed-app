@@ -8,7 +8,7 @@ Living snapshot for handoffs and planning. Update at end of meaningful sessions 
 
 - **Date:** 2026-03-19 (continuation #3)
 - **Branch:** `alex-dev` (tracked: `origin/alex-dev`)
-- **Last commit (this clone):** `c15694b` — feat: session UX, mod categories, Windows codegen, regenerated contracts
+- **Last commit (this clone):** run `git log -1 --oneline` on `alex-dev` — recent bundle: session logger/event fix, mods + `cosmetics`, session notes + change-log UI, Windows `generate-types`, regenerated `contracts/generated`.
 - **Session ended with:** **DEV-ERGONOMICS** — Windows `make generate-types` (PowerShell + `.venv`), `json2ts --cwd` for `$ref` resolution, README agent path fix; batch committed — **push** when ready.
 
 ---
