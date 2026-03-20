@@ -13,7 +13,7 @@ export default function EventDetail() {
   const navigate = useNavigate();
   const { data: event, isLoading, isError } = useEvent(id);
   const { data: bikes } = useBikes();
-  const { data: track } = useTrack(event?.track_id);
+  const { data: track } = useTrack(event?.track_id ?? undefined);
   const updateEvent = useUpdateEvent();
   const deleteEvent = useDeleteEvent();
 

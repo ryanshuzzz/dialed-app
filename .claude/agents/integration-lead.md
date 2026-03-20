@@ -29,6 +29,7 @@ These agents know their service's tables, schemas, endpoints, and business logic
 - **Telemetry/Ingestion** Python issues (CSV parser, channel aliasing, OCR/voice pipelines, TimescaleDB hypertable, analysers, ingestion worker, telemetry endpoints) → delegate to **@agent-telemetry-ingestion**
 - **AI service** Python issues (rules engine, prompt builder, Claude API streaming, suggestion storage, change tracking, AI worker, SSE streaming) → delegate to **@agent-ai-service**
 - **Frontend** issues (React components, TypeScript errors, TanStack Query hooks, Zustand stores, SSE integration, PWA config, Vite build, MSW mocks) → delegate to **@agent-frontend**
+- **UI/UX design** issues (visual design, layout, colors, typography, usability, accessibility, responsive design, component aesthetics, animations) → delegate to **@agent-ui-ux-designer** (uses ui-ux-pro MCP for curated design resources). Note: the frontend agent will also consult ui-ux-designer automatically for design decisions.
 
 ### Cross-cutting infrastructure issues → delegate to infra-fixer
 - Docker build failures, Docker Compose config, Nginx routing, port conflicts, volume mounts

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import { useSessionFormStore } from '@/stores/sessionFormStore'
+import { useEvents } from '@/hooks/useEvents'
 
 type SessionType = 'practice' | 'qualifying' | 'race' | 'trackday'
 type Compound = 'SC0' | 'SC1' | 'SC2' | 'Road'
@@ -44,6 +45,10 @@ export default function SessionLogger() {
   const setNotes = useSessionFormStore((s) => s.setNotes)
   const showConditions = useSessionFormStore((s) => s.showConditions)
   const setShowConditions = useSessionFormStore((s) => s.setShowConditions)
+  const eventId = useSessionFormStore((s) => s.eventId)
+  const setEventId = useSessionFormStore((s) => s.setEventId)
+
+  const { data: events } = useEvents()
 
   return (
     <div className="pb-24" data-testid="session-logger">
@@ -59,6 +64,26 @@ export default function SessionLogger() {
       </div>
 
       <div className="flex flex-col gap-8">
+        {/* Event Selector */}
+        <section>
+          <Label htmlFor="event-select" className="mb-3 block text-sm font-medium text-foreground-secondary">
+            Event
+          </Label>
+          <select
+            id="event-select"
+            value={eventId ?? ''}
+            onChange={(e) => setEventId(e.target.value || null)}
+            className="h-10 w-full rounded-lg border border-border-subtle bg-background-surface px-3 text-sm text-foreground focus:border-accent-orange focus:outline-none focus:ring-1 focus:ring-accent-orange"
+          >
+            <option value="">Select an event...</option>
+            {events?.map((event) => (
+              <option key={event.id} value={event.id}>
+                {event.date}{event.track_id ? ` — Track ${event.track_id}` : ''}
+              </option>
+            ))}
+          </select>
+        </section>
+
         {/* Session Type Selector */}
         <section>
           <Label className="mb-3 block text-sm font-medium text-foreground-secondary">

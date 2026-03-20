@@ -43,3 +43,27 @@ class ConfirmResponse(BaseModel):
 
     status: str = Field(pattern=r"^(confirmed|corrected)$")
     session_id: UUID
+
+
+class VoiceTranscriptRequest(BaseModel):
+    """Request body for POST /ingest/voice/transcript."""
+
+    session_id: UUID
+    transcript: str = Field(min_length=1)
+
+
+class VoiceTranscriptResponse(BaseModel):
+    """Response for POST /ingest/voice/transcript (200).
+
+    Contains the extracted entities ready for user confirmation.
+    Does not create an ingestion job — the caller reviews the result
+    and may apply it via POST /ingest/jobs/{id}/confirm on an existing job,
+    or discard it.
+    """
+
+    session_id: UUID
+    transcript: str
+    setting_mentions: list[dict[str, Any]]
+    lap_times: list[str]
+    feedback: str | None
+    confidence: float = Field(ge=0, le=1)

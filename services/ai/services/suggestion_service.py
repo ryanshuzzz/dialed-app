@@ -12,6 +12,7 @@ import os
 import uuid
 from datetime import datetime, timezone
 
+import httpx
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -24,6 +25,7 @@ from schemas.suggest import AppliedStatus
 logger = logging.getLogger("ai")
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379")
+CORE_API_URL = os.environ.get("CORE_API_URL", "http://core-api:8001")
 
 # Valid applied_status transitions.  The key is the current status and
 # the value is the set of statuses it may transition to.
@@ -35,6 +37,38 @@ _VALID_TRANSITIONS: dict[str, set[str]] = {
     "applied": {"applied_modified", "skipped"},
     "applied_modified": {"applied", "skipped"},
 }
+
+
+# ── Session validation ──
+
+
+async def validate_session_exists(
+    session_id: uuid.UUID,
+    internal_token: str,
+) -> None:
+    """Verify the session exists in Core API before enqueuing a job.
+
+    Args:
+        session_id: The session UUID to validate.
+        internal_token: The internal auth token to forward to Core API.
+
+    Raises:
+        NotFoundException: If the session does not exist (Core API returns 404).
+        NotFoundException: If Core API is unreachable or returns an unexpected error.
+    """
+    url = f"{CORE_API_URL.rstrip('/')}/sessions/{session_id}"
+    headers = {"X-Internal-Token": internal_token}
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(url, headers=headers)
+            if resp.status_code == 404:
+                raise NotFoundException("Session not found")
+            resp.raise_for_status()
+    except NotFoundException:
+        raise
+    except (httpx.HTTPStatusError, httpx.RequestError) as exc:
+        logger.warning("Failed to validate session %s with Core API: %s", session_id, exc)
+        raise NotFoundException("Session not found")
 
 
 # ── Job creation ──

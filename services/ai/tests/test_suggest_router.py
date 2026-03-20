@@ -72,6 +72,10 @@ async def test_post_suggest_creates_job(setup):
     fake_job_id = uuid.uuid4()
 
     with patch(
+        "routers.suggest.validate_session_exists",
+        new_callable=AsyncMock,
+        return_value=None,
+    ), patch(
         "routers.suggest.create_generation_job",
         new_callable=AsyncMock,
         return_value=fake_job_id,
@@ -81,6 +85,27 @@ async def test_post_suggest_creates_job(setup):
     assert resp.status_code == 202
     data = resp.json()
     assert data["job_id"] == str(fake_job_id)
+
+
+@pytest.mark.asyncio
+async def test_post_suggest_session_not_found(setup):
+    """POST /suggest with a non-existent session_id returns 404."""
+    from dialed_shared import NotFoundException
+
+    client, _, _ = setup
+    session_id = uuid.uuid4()
+
+    with patch(
+        "routers.suggest.validate_session_exists",
+        new_callable=AsyncMock,
+        side_effect=NotFoundException("Session not found"),
+    ):
+        resp = await client.post("/suggest", json={"session_id": str(session_id)})
+
+    assert resp.status_code == 404
+    data = resp.json()
+    assert data["code"] == "NOT_FOUND"
+    assert "session" in data["error"].lower()
 
 
 # ── GET /suggest/session/{session_id} ──

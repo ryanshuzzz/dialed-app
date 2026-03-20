@@ -14,6 +14,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dialed_shared.errors import (
+    DialedException,
     NotFoundException,
     UnauthorizedException,
     ValidationException,
@@ -90,11 +91,18 @@ class AuthService:
             select(User).where(User.email == data.email)
         )
         if result.scalar_one_or_none():
-            raise ValidationException(error="Email already registered")
+            raise DialedException(
+                error="Email already registered",
+                code="USER_EXISTS",
+                status_code=409,
+            )
 
         user = User(
             email=data.email,
             display_name=data.display_name,
+            skill_level=data.skill_level,
+            rider_type=data.rider_type,
+            units=data.units,
         )
         session.add(user)
         await session.flush()

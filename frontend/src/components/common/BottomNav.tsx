@@ -10,8 +10,12 @@ interface NavItemDef {
   navItem: NavItem
 }
 
-const navItems: NavItemDef[] = [
+// Sessions/Home is always visible regardless of rider_type
+const alwaysVisibleItems: NavItemDef[] = [
   { href: '/', icon: Flag, label: 'Sessions', navItem: 'sessions' },
+]
+
+const conditionalNavItems: NavItemDef[] = [
   { href: '/garage', icon: Car, label: 'Garage', navItem: 'garage' },
   { href: '/progress', icon: TrendingUp, label: 'Progress', navItem: 'progress' },
   { href: '/ai', icon: Sparkles, label: 'AI', navItem: 'ai' },
@@ -22,7 +26,10 @@ export function BottomNav() {
   const location = useLocation()
   const isNavVisible = useUiStore((s) => s.isNavVisible)
 
-  const visibleItems = navItems.filter((item) => isNavVisible(item.navItem))
+  const visibleItems = [
+    ...alwaysVisibleItems,
+    ...conditionalNavItems.filter((item) => isNavVisible(item.navItem)),
+  ]
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border-subtle bg-background-surface safe-area-bottom">

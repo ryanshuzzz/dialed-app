@@ -10,9 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dialed_shared.errors import (
-    ForbiddenException,
     NotFoundException,
-    ValidationException,
 )
 
 from models.bike import Bike
@@ -64,7 +62,7 @@ async def _get_bike_for_user(
     if not bike:
         raise NotFoundException(error="Bike not found")
     if bike.user_id != user_id:
-        raise ForbiddenException(error="You do not have access to this bike")
+        raise NotFoundException(error="Bike not found")
     return bike
 
 

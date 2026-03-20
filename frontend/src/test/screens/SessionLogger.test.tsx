@@ -334,7 +334,7 @@ describe('SessionLogger screen', () => {
       expect(screen.getByTestId('session-detail-page')).toBeInTheDocument();
     });
 
-    const postCalls = fetchSpy.mock.calls.filter((c) => {
+    const postCalls = fetchSpy.mock.calls.filter((c: Parameters<typeof fetch>) => {
       const url = typeof c[0] === 'string' ? c[0] : '';
       const init = c[1] as RequestInit | undefined;
       return url.includes('/sessions') && init?.method === 'POST';
