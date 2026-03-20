@@ -135,6 +135,15 @@ npm install
 npm run dev
 ```
 
+Or from the **repo root** (after installing frontend deps once):
+
+```bash
+npm install --prefix frontend
+npm run dev
+```
+
+(`package.json` at the root only forwards scripts into `frontend/` — there is no root `node_modules` for the app.)
+
 MSW intercepts all API calls with mock data generated from the OpenAPI specs.
 
 -----
