@@ -222,7 +222,7 @@ describe('SessionDetail screen', () => {
     await waitFor(() => {
       expect(screen.getByTestId('rider-feedback')).toBeInTheDocument();
     });
-    expect(screen.getByTestId('rider-feedback')).toHaveTextContent('Front end feels planted');
+    expect(screen.getByTestId('rider-feedback')).toHaveValue('Front end feels planted but rear is sliding on exit of T4.');
   });
 
   it('renders change log entries', async () => {

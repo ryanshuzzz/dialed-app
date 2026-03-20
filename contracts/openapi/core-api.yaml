@@ -636,7 +636,7 @@ components:
           enum: [installed, removed, swapped, upgraded, repaired]
         category:
           type: string
-          enum: [exhaust, ecu, suspension, brakes, wheels_tires, bodywork, controls, lighting, engine, drivetrain, electronics, ergonomics, other]
+          enum: [exhaust, ecu, suspension, brakes, wheels_tires, bodywork, cosmetics, controls, lighting, engine, drivetrain, electronics, ergonomics, other]
         part_name:
           type: string
         brand:
@@ -671,7 +671,7 @@ components:
           enum: [installed, removed, swapped, upgraded, repaired]
         category:
           type: string
-          enum: [exhaust, ecu, suspension, brakes, wheels_tires, bodywork, controls, lighting, engine, drivetrain, electronics, ergonomics, other]
+          enum: [exhaust, ecu, suspension, brakes, wheels_tires, bodywork, cosmetics, controls, lighting, engine, drivetrain, electronics, ergonomics, other]
         part_name:
           type: string
         brand:
@@ -701,7 +701,7 @@ components:
           enum: [installed, removed, swapped, upgraded, repaired]
         category:
           type: string
-          enum: [exhaust, ecu, suspension, brakes, wheels_tires, bodywork, controls, lighting, engine, drivetrain, electronics, ergonomics, other]
+          enum: [exhaust, ecu, suspension, brakes, wheels_tires, bodywork, cosmetics, controls, lighting, engine, drivetrain, electronics, ergonomics, other]
         part_name:
           type: string
         brand:
@@ -1827,7 +1827,7 @@ paths:
           in: query
           schema:
             type: string
-            enum: [exhaust, ecu, suspension, brakes, wheels_tires, bodywork, controls, lighting, engine, drivetrain, electronics, ergonomics, other]
+            enum: [exhaust, ecu, suspension, brakes, wheels_tires, bodywork, cosmetics, controls, lighting, engine, drivetrain, electronics, ergonomics, other]
           description: Filter by modification category
         - name: status
           in: query

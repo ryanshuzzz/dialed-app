@@ -28,6 +28,7 @@ class ModificationCategory(str, Enum):
     brakes = "brakes"
     wheels_tires = "wheels_tires"
     bodywork = "bodywork"
+    cosmetics = "cosmetics"
     controls = "controls"
     lighting = "lighting"
     engine = "engine"

@@ -55,7 +55,8 @@ export default function SessionLogger() {
   const confirmIngestion = useConfirmIngestion();
 
   const handleNextFromEvent = useCallback(async () => {
-    if (createNewEvent && bikeId && trackId) {
+    if (createNewEvent) {
+      if (!bikeId || !trackId) return;
       try {
         const newEvent = await createEvent.mutateAsync({
           bike_id: bikeId,
@@ -67,10 +68,10 @@ export default function SessionLogger() {
       } catch {
         return;
       }
+    } else if (!selectedEventId) {
+      return;
     }
-    if (selectedEventId || createNewEvent) {
-      setStep('details');
-    }
+    setStep('details');
   }, [createNewEvent, bikeId, trackId, selectedEventId, createEvent, eventDate, conditions]);
 
   const handleNextFromDetails = () => {
@@ -294,13 +295,22 @@ export default function SessionLogger() {
             </div>
           )}
 
+          {createEvent.isError && (
+            <p className="text-sm text-red-600" role="alert">
+              Could not create event. Check bike and track, then try again.
+            </p>
+          )}
+
           <button
             onClick={handleNextFromEvent}
-            disabled={!createNewEvent && !selectedEventId}
+            disabled={
+              createEvent.isPending ||
+              (createNewEvent ? !bikeId || !trackId : !selectedEventId)
+            }
             className="px-4 py-2 min-h-[44px] bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
             data-testid="next-button"
           >
-            Next
+            {createEvent.isPending ? 'Creating event…' : 'Next'}
           </button>
         </div>
       )}
@@ -420,6 +430,11 @@ export default function SessionLogger() {
           <p className="text-sm text-gray-500">
             Upload telemetry CSV, photos for OCR, or voice notes. You can also skip this step.
           </p>
+          {createSession.isError && (
+            <p className="text-sm text-red-600" role="alert">
+              Could not create session. Ensure you completed the event step with a valid event, then try again.
+            </p>
+          )}
 
           <div className="grid gap-4">
             {/* CSV Upload */}
@@ -558,6 +573,12 @@ export default function SessionLogger() {
             )}
           </div>
 
+          {createSession.isError && (
+            <p className="text-sm text-red-600" role="alert">
+              Save failed. Check your connection and that an event is selected, then try again.
+            </p>
+          )}
+
           <div className="flex gap-2">
             <button
               onClick={() => setStep('upload')}
@@ -567,10 +588,15 @@ export default function SessionLogger() {
             </button>
             <button
               onClick={handleSaveSession}
-              className="px-4 py-2 min-h-[44px] bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
+              disabled={createSession.isPending || (!createdSessionId && !selectedEventId)}
+              className="px-4 py-2 min-h-[44px] bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
               data-testid="save-session"
             >
-              {createdSessionId ? 'View Session' : 'Save Session'}
+              {createSession.isPending
+                ? 'Saving…'
+                : createdSessionId
+                  ? 'View Session'
+                  : 'Save Session'}
             </button>
           </div>
         </div>
