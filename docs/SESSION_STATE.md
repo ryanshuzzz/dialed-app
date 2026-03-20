@@ -69,6 +69,7 @@ Product / architecture questions that **do not block** v1 implementation — see
 
 ## Quick reference
 
+- Feedback traceability (sessions / mods): [feedback-sessions-and-mods.md](feedback-sessions-and-mods.md)
 - Master plan: [dialed-app-v1-final-plan.md](dialed-app-v1-final-plan.md)
 - Integration steps + evidence: [stage-2-integration-playbook.md](../stage-2-integration-playbook.md)
 - Infra: [infrastructure-reference.md](infrastructure-reference.md)

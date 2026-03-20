@@ -74,6 +74,8 @@ const MOCK_EVENTS: TrackEvent[] = [
   },
 ];
 
+const eventsState: TrackEvent[] = MOCK_EVENTS.map((e) => ({ ...e, conditions: { ...e.conditions } }));
+
 export const eventHandlers = [
   // GET /api/v1/garage/events
   http.get(`${BASE}/garage/events`, ({ request }) => {
@@ -83,7 +85,7 @@ export const eventHandlers = [
     const fromDate = url.searchParams.get('from_date');
     const toDate = url.searchParams.get('to_date');
 
-    let filtered = [...MOCK_EVENTS];
+    let filtered = [...eventsState];
     if (bikeId) filtered = filtered.filter((e) => e.bike_id === bikeId);
     if (trackId) filtered = filtered.filter((e) => e.track_id === trackId);
     if (fromDate) filtered = filtered.filter((e) => e.date >= fromDate);
@@ -105,12 +107,13 @@ export const eventHandlers = [
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
+    eventsState.push(newEvent);
     return HttpResponse.json(newEvent, { status: 201 });
   }),
 
   // GET /api/v1/garage/events/:id
   http.get(`${BASE}/garage/events/:id`, ({ params }) => {
-    const event = MOCK_EVENTS.find((e) => e.id === params.id);
+    const event = eventsState.find((e) => e.id === params.id);
     if (!event) {
       return HttpResponse.json(
         { error: 'Event not found', code: 'NOT_FOUND' },
@@ -122,7 +125,7 @@ export const eventHandlers = [
 
   // PATCH /api/v1/garage/events/:id
   http.patch(`${BASE}/garage/events/:id`, async ({ params, request }) => {
-    const event = MOCK_EVENTS.find((e) => e.id === params.id);
+    const event = eventsState.find((e) => e.id === params.id);
     if (!event) {
       return HttpResponse.json(
         { error: 'Event not found', code: 'NOT_FOUND' },
@@ -135,18 +138,22 @@ export const eventHandlers = [
       ...body,
       updated_at: new Date().toISOString(),
     } as TrackEvent;
+    const idx = eventsState.findIndex((e) => e.id === params.id);
+    if (idx !== -1) eventsState[idx] = updated;
     return HttpResponse.json(updated);
   }),
 
   // DELETE /api/v1/garage/events/:id
   http.delete(`${BASE}/garage/events/:id`, ({ params }) => {
-    const event = MOCK_EVENTS.find((e) => e.id === params.id);
+    const event = eventsState.find((e) => e.id === params.id);
     if (!event) {
       return HttpResponse.json(
         { error: 'Event not found', code: 'NOT_FOUND' },
         { status: 404 },
       );
     }
+    const idx = eventsState.findIndex((e) => e.id === params.id);
+    if (idx !== -1) eventsState.splice(idx, 1);
     return new HttpResponse(null, { status: 204 });
   }),
 ];
