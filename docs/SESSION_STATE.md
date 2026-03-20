@@ -8,8 +8,8 @@ Living snapshot for handoffs and planning. Update at end of meaningful sessions 
 
 - **Date:** 2026-03-19 (continuation #3)
 - **Branch:** `alex-dev` (tracked: `origin/alex-dev`)
-- **Last commit (this clone):** `4de943a` — feat: session UX, mod categories, Windows codegen, regenerated contracts
-- **Session ended with:** **DEV-ERGONOMICS** — Windows `make generate-types` (PowerShell + `.venv`), `json2ts --cwd` for `$ref` resolution, README agent path fix; uncommitted batch ready to push.
+- **Last commit (this clone):** `c15694b` — feat: session UX, mod categories, Windows codegen, regenerated contracts
+- **Session ended with:** **DEV-ERGONOMICS** — Windows `make generate-types` (PowerShell + `.venv`), `json2ts --cwd` for `$ref` resolution, README agent path fix; batch committed — **push** when ready.
 
 ---
 
