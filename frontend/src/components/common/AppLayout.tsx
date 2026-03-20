@@ -1,6 +1,7 @@
 import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { BottomNav } from './BottomNav';
+import { DesktopSidebar } from './DesktopSidebar';
 import { LogOut } from 'lucide-react';
 
 export function AppLayout() {
@@ -14,8 +15,11 @@ export function AppLayout() {
 
   return (
     <div className="min-h-screen bg-[var(--background)]">
-      {/* Sticky header */}
-      <header className="sticky top-0 z-40 border-b border-border-subtle bg-background-surface safe-area-top">
+      {/* Desktop sidebar — hidden on mobile, visible on lg+ */}
+      <DesktopSidebar />
+
+      {/* Mobile header — hidden on desktop */}
+      <header className="sticky top-0 z-40 border-b border-border-subtle bg-background-surface safe-area-top lg:hidden">
         <div className="mx-auto flex max-w-[480px] items-center justify-between px-4 py-3">
           <img src="/dialed_logo_v2.svg" alt="Dialed" className="h-7" />
           <button
@@ -29,13 +33,15 @@ export function AppLayout() {
         </div>
       </header>
 
-      {/* Main content area */}
-      <main className="mx-auto max-w-[480px] px-4 pb-24 pt-4">
+      {/* Main content area — add left padding on desktop for sidebar */}
+      <main className="mx-auto max-w-[480px] px-4 pb-24 pt-4 lg:ml-[220px] lg:mr-0 lg:max-w-none lg:px-6 lg:pb-6">
         <Outlet />
       </main>
 
-      {/* Bottom navigation */}
-      <BottomNav />
+      {/* Bottom navigation — hidden on desktop */}
+      <div className="lg:hidden">
+        <BottomNav />
+      </div>
     </div>
   );
 }
