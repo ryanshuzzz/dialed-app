@@ -72,6 +72,16 @@ export const router = createBrowserRouter([
     ),
   },
   {
+    path: '/login',
+    element: (
+      <GuestGuard>
+        <Suspended>
+          <Login />
+        </Suspended>
+      </GuestGuard>
+    ),
+  },
+  {
     path: '/',
     element: (
       <AuthGuard>
