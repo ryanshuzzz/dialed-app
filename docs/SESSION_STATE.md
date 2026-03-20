@@ -45,7 +45,7 @@ Product / architecture questions that **do not block** v1 implementation — see
 
 ## NEXT INTENDED ACTIONS
 
-1. **Commit and push** the current batch (session/mods UI, contracts, codegen scripts, `contracts/generated`, `SESSION_STATE`, `requirements-dev.txt`) if not already on `origin/alex-dev`.
+1. **`git push origin alex-dev`** — local branch is ahead with the session/mods/codegen bundle + docs.
 2. Run **full local verification** after any pull: `docker compose up` (or `make dev-build`), `make migrate`, smoke the e2e path in the playbook (register → garage → session → ingestion → suggestion).
 3. **`make test-all`** in Docker when touching backend services.
 4. Add **`docs/HANDOFF.md`** when ending a long session so the next run gets a tight diff + commit list (optional companion to this file).
