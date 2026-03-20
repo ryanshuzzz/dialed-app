@@ -146,6 +146,8 @@ npm run dev
 
 MSW intercepts all API calls with mock data generated from the OpenAPI specs.
 
+**Login fails / “Failed to fetch”:** The app calls `VITE_GATEWAY_URL` (default `http://localhost:8000`) + `/api/v1`. Without Docker, the **Mock Service Worker** must start so requests are intercepted. The worker file lives at `frontend/public/mockServiceWorker.js` (regenerate with `cd frontend && npx msw init public --save`). If you see `[MSW] Failed to register` in the console, do a hard refresh or clear site data for `localhost:5173`, then reload.
+
 -----
 
 ## Project structure
