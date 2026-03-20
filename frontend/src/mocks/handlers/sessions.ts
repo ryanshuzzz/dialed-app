@@ -82,6 +82,27 @@ const MOCK_SESSIONS: Session[] = [
     created_at: '2026-01-15T10:00:00Z',
     updated_at: '2026-01-15T12:00:00Z',
   },
+  {
+    id: 'session-road-1',
+    event_id: 'event-road-1',
+    user_id: 'user-1',
+    session_type: 'commute',
+    manual_best_lap_ms: null,
+    csv_best_lap_ms: null,
+    tire_front: null,
+    tire_rear: null,
+    rider_feedback: 'Smooth run, lane-splitting where legal.',
+    voice_note_url: null,
+    ride_metrics: {
+      distance_km: 42.5,
+      duration_ms: 45 * 60 * 1000,
+      fuel_used_l: 2.1,
+      odometer_km: 12500,
+      fuel_efficiency_l_per_100km: 4.9,
+    },
+    created_at: '2026-02-01T09:00:00Z',
+    updated_at: '2026-02-01T09:00:00Z',
+  },
 ];
 
 const MOCK_SNAPSHOTS: Record<string, SetupSnapshot[]> = {
@@ -176,6 +197,7 @@ export const sessionHandlers = [
       tire_rear: body.tire_rear ?? null,
       rider_feedback: body.rider_feedback ?? null,
       voice_note_url: body.voice_note_url ?? null,
+      ride_metrics: body.ride_metrics ?? null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };

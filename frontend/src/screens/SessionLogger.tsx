@@ -1,23 +1,75 @@
-import { useState, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useBikes } from '@/hooks/useBikes';
 import { useTracks } from '@/hooks/useTracks';
 import { useEvents, useCreateEvent } from '@/hooks/useEvents';
 import { useCreateSession } from '@/hooks/useSessions';
 import { useIngestCsv, useIngestOcr, useIngestVoice, useIngestionJob, useConfirmIngestion } from '@/hooks/useIngestion';
 import { IngestionProgress } from '@/components/session/IngestionProgress';
-import type { CreateSessionRequest, Conditions } from '@/api/types';
+import type {
+  CreateSessionRequest,
+  Conditions,
+  EventVenue,
+  RideMetrics,
+  SessionType,
+} from '@/api/types';
 
 type Step = 'event' | 'details' | 'upload' | 'review';
 
-const SESSION_TYPES = ['practice', 'qualifying', 'race', 'trackday'] as const;
+const TRACK_SESSION_TYPES = ['practice', 'qualifying', 'race', 'trackday'] as const satisfies readonly SessionType[];
+const ROAD_SESSION_TYPES = ['road', 'commute', 'tour'] as const satisfies readonly SessionType[];
 const CONDITION_OPTIONS = ['dry', 'damp', 'wet', 'mixed'] as const;
+
+function sessionTypesForVenue(venue: EventVenue): readonly SessionType[] {
+  return venue === 'road' ? ROAD_SESSION_TYPES : TRACK_SESSION_TYPES;
+}
+
+function parseRideMetrics(
+  distanceKm: string,
+  durationMin: string,
+  fuelL: string,
+  odometerKm: string,
+  efficiency: string,
+): RideMetrics | null {
+  const out: RideMetrics = {};
+  if (distanceKm.trim()) {
+    const v = parseFloat(distanceKm);
+    if (Number.isFinite(v)) out.distance_km = v;
+  }
+  if (durationMin.trim()) {
+    const v = parseFloat(durationMin);
+    if (Number.isFinite(v)) out.duration_ms = Math.round(v * 60 * 1000);
+  }
+  if (fuelL.trim()) {
+    const v = parseFloat(fuelL);
+    if (Number.isFinite(v)) out.fuel_used_l = v;
+  }
+  if (odometerKm.trim()) {
+    const v = parseFloat(odometerKm);
+    if (Number.isFinite(v)) out.odometer_km = v;
+  }
+  if (efficiency.trim()) {
+    const v = parseFloat(efficiency);
+    if (Number.isFinite(v)) out.fuel_efficiency_l_per_100km = v;
+  }
+  if (
+    out.distance_km == null &&
+    out.duration_ms == null &&
+    out.fuel_used_l == null &&
+    out.odometer_km == null &&
+    out.fuel_efficiency_l_per_100km == null
+  ) {
+    return null;
+  }
+  return out;
+}
 
 export default function SessionLogger() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [step, setStep] = useState<Step>('event');
 
-  // Step 1: Event selection
+  const [eventVenue, setEventVenue] = useState<EventVenue>('track');
   const [selectedEventId, setSelectedEventId] = useState('');
   const [createNewEvent, setCreateNewEvent] = useState(false);
   const [bikeId, setBikeId] = useState('');
@@ -25,8 +77,12 @@ export default function SessionLogger() {
   const [eventDate, setEventDate] = useState(new Date().toISOString().split('T')[0]);
   const [conditions, setConditions] = useState<Conditions>({});
 
-  // Step 2: Session details
-  const [sessionType, setSessionType] = useState<typeof SESSION_TYPES[number]>('practice');
+  const [rideLocationLabel, setRideLocationLabel] = useState('');
+  const [rideLocationNotes, setRideLocationNotes] = useState('');
+  const [rideLocationLat, setRideLocationLat] = useState('');
+  const [rideLocationLon, setRideLocationLon] = useState('');
+
+  const [sessionType, setSessionType] = useState<SessionType>('practice');
   const [tireFrontBrand, setTireFrontBrand] = useState('');
   const [tireFrontCompound, setTireFrontCompound] = useState('');
   const [tireRearBrand, setTireRearBrand] = useState('');
@@ -34,15 +90,18 @@ export default function SessionLogger() {
   const [riderFeedback, setRiderFeedback] = useState('');
   const [manualBestLapMs, setManualBestLapMs] = useState('');
 
-  // Step 3: Upload & ingestion
+  const [rmDistanceKm, setRmDistanceKm] = useState('');
+  const [rmDurationMin, setRmDurationMin] = useState('');
+  const [rmFuelL, setRmFuelL] = useState('');
+  const [rmOdometerKm, setRmOdometerKm] = useState('');
+  const [rmEfficiency, setRmEfficiency] = useState('');
+
   const [activeJobId, setActiveJobId] = useState<string | undefined>(undefined);
   const [activeJobSource, setActiveJobSource] = useState('');
   const [ingestionComplete, setIngestionComplete] = useState(false);
 
-  // Step 4: Created session
   const [createdSessionId, setCreatedSessionId] = useState<string | undefined>(undefined);
 
-  // Data hooks
   const { data: bikes, isLoading: bikesLoading } = useBikes();
   const { data: tracks, isLoading: tracksLoading } = useTracks();
   const { data: events } = useEvents();
@@ -54,25 +113,158 @@ export default function SessionLogger() {
   const { data: ingestionJob } = useIngestionJob(activeJobId);
   const confirmIngestion = useConfirmIngestion();
 
+  const trackNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    tracks?.forEach((t) => m.set(t.id, t.name));
+    return m;
+  }, [tracks]);
+
+  const filteredEvents = useMemo(() => {
+    if (!events) return [];
+    return events.filter((e) => e.venue === eventVenue);
+  }, [events, eventVenue]);
+
+  const effectiveVenue: EventVenue = useMemo(() => {
+    if (!createNewEvent && selectedEventId && events) {
+      const ev = events.find((e) => e.id === selectedEventId);
+      if (ev) return ev.venue;
+    }
+    return eventVenue;
+  }, [createNewEvent, selectedEventId, events, eventVenue]);
+
+  const allowedSessionTypes = useMemo(
+    () => sessionTypesForVenue(effectiveVenue),
+    [effectiveVenue],
+  );
+
+  useEffect(() => {
+    if (!allowedSessionTypes.includes(sessionType)) {
+      setSessionType(allowedSessionTypes[0]);
+    }
+  }, [allowedSessionTypes, sessionType]);
+
+  useEffect(() => {
+    const eid = searchParams.get('event_id');
+    if (!eid || !events?.length) return;
+    const ev = events.find((x) => x.id === eid);
+    if (ev) {
+      setCreateNewEvent(false);
+      setSelectedEventId(eid);
+      setEventVenue(ev.venue);
+    }
+  }, [searchParams, events]);
+
+  useEffect(() => {
+    if (!selectedEventId || !events) return;
+    const ev = events.find((e) => e.id === selectedEventId);
+    if (ev && ev.venue !== eventVenue) {
+      setSelectedEventId('');
+    }
+  }, [eventVenue, selectedEventId, events]);
+
+  const rideMetricsPayload = useMemo(
+    () => parseRideMetrics(rmDistanceKm, rmDurationMin, rmFuelL, rmOdometerKm, rmEfficiency),
+    [rmDistanceKm, rmDurationMin, rmFuelL, rmOdometerKm, rmEfficiency],
+  );
+
+  const buildCreateSessionRequest = useCallback((): CreateSessionRequest => {
+    const lapMs =
+      effectiveVenue === 'track' && manualBestLapMs.trim()
+        ? parseInt(manualBestLapMs, 10)
+        : null;
+    return {
+      event_id: selectedEventId,
+      session_type: sessionType,
+      manual_best_lap_ms: Number.isFinite(lapMs as number) ? lapMs : null,
+      tire_front: tireFrontBrand
+        ? { brand: tireFrontBrand, compound: tireFrontCompound || null, laps: null }
+        : null,
+      tire_rear: tireRearBrand
+        ? { brand: tireRearBrand, compound: tireRearCompound || null, laps: null }
+        : null,
+      rider_feedback: riderFeedback.trim() ? riderFeedback : null,
+      ride_metrics: rideMetricsPayload,
+    };
+  }, [
+    effectiveVenue,
+    selectedEventId,
+    sessionType,
+    manualBestLapMs,
+    tireFrontBrand,
+    tireFrontCompound,
+    tireRearBrand,
+    tireRearCompound,
+    riderFeedback,
+    rideMetricsPayload,
+  ]);
+
+  const handleVenueChange = (v: EventVenue) => {
+    setEventVenue(v);
+    setSelectedEventId('');
+    setSessionType(v === 'road' ? 'road' : 'practice');
+  };
+
   const handleNextFromEvent = useCallback(async () => {
     if (createNewEvent) {
-      if (!bikeId || !trackId) return;
-      try {
-        const newEvent = await createEvent.mutateAsync({
-          bike_id: bikeId,
-          track_id: trackId,
-          date: eventDate,
-          conditions,
-        });
-        setSelectedEventId(newEvent.id);
-      } catch {
-        return;
+      if (!bikeId) return;
+      if (eventVenue === 'track') {
+        if (!trackId) return;
+        try {
+          const newEvent = await createEvent.mutateAsync({
+            bike_id: bikeId,
+            venue: 'track',
+            track_id: trackId,
+            date: eventDate,
+            conditions,
+          });
+          setSelectedEventId(newEvent.id);
+        } catch {
+          return;
+        }
+      } else {
+        const label = rideLocationLabel.trim();
+        if (!label) return;
+        try {
+          const newEvent = await createEvent.mutateAsync({
+            bike_id: bikeId,
+            venue: 'road',
+            track_id: null,
+            date: eventDate,
+            conditions,
+            ride_location: {
+              label,
+              notes: rideLocationNotes.trim() || null,
+              approximate_lat: rideLocationLat.trim()
+                ? parseFloat(rideLocationLat)
+                : null,
+              approximate_lon: rideLocationLon.trim()
+                ? parseFloat(rideLocationLon)
+                : null,
+            },
+          });
+          setSelectedEventId(newEvent.id);
+        } catch {
+          return;
+        }
       }
     } else if (!selectedEventId) {
       return;
     }
     setStep('details');
-  }, [createNewEvent, bikeId, trackId, selectedEventId, createEvent, eventDate, conditions]);
+  }, [
+    createNewEvent,
+    bikeId,
+    trackId,
+    eventVenue,
+    rideLocationLabel,
+    rideLocationNotes,
+    rideLocationLat,
+    rideLocationLon,
+    selectedEventId,
+    createEvent,
+    eventDate,
+    conditions,
+  ]);
 
   const handleNextFromDetails = () => {
     setStep('upload');
@@ -82,19 +274,10 @@ export default function SessionLogger() {
     async (type: 'csv' | 'ocr' | 'voice', file: File) => {
       if (!createdSessionId && !selectedEventId) return;
 
-      // We need a session to attach ingestion to. Create it if not created yet.
       let sessionId = createdSessionId;
       if (!sessionId) {
-        const req: CreateSessionRequest = {
-          event_id: selectedEventId,
-          session_type: sessionType,
-          manual_best_lap_ms: manualBestLapMs ? parseInt(manualBestLapMs, 10) : null,
-          tire_front: tireFrontBrand ? { brand: tireFrontBrand, compound: tireFrontCompound || null, laps: null } : null,
-          tire_rear: tireRearBrand ? { brand: tireRearBrand, compound: tireRearCompound || null, laps: null } : null,
-          rider_feedback: riderFeedback || null,
-        };
         try {
-          const session = await createSession.mutateAsync(req);
+          const session = await createSession.mutateAsync(buildCreateSessionRequest());
           sessionId = session.id;
           setCreatedSessionId(session.id);
         } catch {
@@ -118,9 +301,13 @@ export default function SessionLogger() {
       }
     },
     [
-      createdSessionId, selectedEventId, sessionType, manualBestLapMs,
-      tireFrontBrand, tireFrontCompound, tireRearBrand, tireRearCompound,
-      riderFeedback, createSession, ingestCsv, ingestOcr, ingestVoice,
+      createdSessionId,
+      selectedEventId,
+      createSession,
+      buildCreateSessionRequest,
+      ingestCsv,
+      ingestOcr,
+      ingestVoice,
     ],
   );
 
@@ -140,26 +327,23 @@ export default function SessionLogger() {
       navigate(`/sessions/${createdSessionId}`);
       return;
     }
-    // Create session if not already created
-    const req: CreateSessionRequest = {
-      event_id: selectedEventId,
-      session_type: sessionType,
-      manual_best_lap_ms: manualBestLapMs ? parseInt(manualBestLapMs, 10) : null,
-      tire_front: tireFrontBrand ? { brand: tireFrontBrand, compound: tireFrontCompound || null, laps: null } : null,
-      tire_rear: tireRearBrand ? { brand: tireRearBrand, compound: tireRearCompound || null, laps: null } : null,
-      rider_feedback: riderFeedback || null,
-    };
     try {
-      const session = await createSession.mutateAsync(req);
+      const session = await createSession.mutateAsync(buildCreateSessionRequest());
       navigate(`/sessions/${session.id}`);
     } catch {
       // Error handled by mutation
     }
-  }, [
-    createdSessionId, selectedEventId, sessionType, manualBestLapMs,
-    tireFrontBrand, tireFrontCompound, tireRearBrand, tireRearCompound,
-    riderFeedback, createSession, navigate,
-  ]);
+  }, [createdSessionId, createSession, buildCreateSessionRequest, navigate]);
+
+  const eventStepValid =
+    createNewEvent &&
+    bikeId &&
+    (eventVenue === 'track'
+      ? !!trackId
+      : rideLocationLabel.trim().length > 0);
+  const eventNextDisabled =
+    createEvent.isPending ||
+    (createNewEvent ? !eventStepValid : !selectedEventId);
 
   const steps: { key: Step; label: string }[] = [
     { key: 'event', label: 'Event' },
@@ -168,11 +352,22 @@ export default function SessionLogger() {
     { key: 'review', label: 'Review' },
   ];
 
+  const formatMetricReview = (m: RideMetrics) => {
+    const rows: { k: string; v: string }[] = [];
+    if (m.distance_km != null) rows.push({ k: 'Distance', v: `${m.distance_km} km` });
+    if (m.duration_ms != null)
+      rows.push({ k: 'Duration', v: `${(m.duration_ms / 60000).toFixed(1)} min` });
+    if (m.fuel_used_l != null) rows.push({ k: 'Fuel', v: `${m.fuel_used_l} L` });
+    if (m.odometer_km != null) rows.push({ k: 'Odometer', v: `${m.odometer_km} km` });
+    if (m.fuel_efficiency_l_per_100km != null)
+      rows.push({ k: 'Fuel economy', v: `${m.fuel_efficiency_l_per_100km} L/100km` });
+    return rows;
+  };
+
   return (
     <div className="max-w-2xl mx-auto px-0 sm:px-4" data-testid="session-logger">
       <h2 className="text-2xl font-bold mb-6">Log Session</h2>
 
-      {/* Step indicator */}
       <div className="flex items-center mb-8" data-testid="step-indicator">
         {steps.map((s, i) => (
           <div key={s.key} className="flex items-center flex-1">
@@ -188,17 +383,39 @@ export default function SessionLogger() {
               {i + 1}
             </div>
             <span className="ml-2 text-sm text-gray-600 hidden sm:inline">{s.label}</span>
-            {i < steps.length - 1 && (
-              <div className="flex-1 h-0.5 mx-2 bg-gray-200" />
-            )}
+            {i < steps.length - 1 && <div className="flex-1 h-0.5 mx-2 bg-gray-200" />}
           </div>
         ))}
       </div>
 
-      {/* Step 1: Event */}
       {step === 'event' && (
         <div className="space-y-4" data-testid="step-event">
           <h3 className="text-lg font-semibold text-gray-800">Select or Create Event</h3>
+
+          <div role="group" aria-label="Event venue" className="flex flex-wrap gap-3">
+            <label className="flex items-center gap-2 text-sm text-gray-700 min-h-[44px] cursor-pointer">
+              <input
+                type="radio"
+                name="event-venue"
+                checked={eventVenue === 'track'}
+                onChange={() => handleVenueChange('track')}
+                className="w-5 h-5"
+                data-testid="venue-track"
+              />
+              Track day
+            </label>
+            <label className="flex items-center gap-2 text-sm text-gray-700 min-h-[44px] cursor-pointer">
+              <input
+                type="radio"
+                name="event-venue"
+                checked={eventVenue === 'road'}
+                onChange={() => handleVenueChange('road')}
+                className="w-5 h-5"
+                data-testid="venue-road"
+              />
+              Road ride
+            </label>
+          </div>
 
           <label className="flex items-center gap-2 text-sm text-gray-600 min-h-[44px]">
             <input
@@ -229,23 +446,76 @@ export default function SessionLogger() {
                   ))}
                 </select>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Track *</label>
-                <select
-                  value={trackId}
-                  onChange={(e) => setTrackId(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-                  data-testid="track-select"
-                >
-                  <option value="">Select track...</option>
-                  {tracksLoading && <option disabled>Loading...</option>}
-                  {tracks?.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+
+              {eventVenue === 'track' ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Track *</label>
+                  <select
+                    value={trackId}
+                    onChange={(e) => setTrackId(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                    data-testid="track-select"
+                  >
+                    <option value="">Select track...</option>
+                    {tracksLoading && <option disabled>Loading...</option>}
+                    {tracks?.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="space-y-3 border border-gray-200 rounded-lg p-4">
+                  <p className="text-sm font-medium text-gray-800">Ride location</p>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Label *</label>
+                    <input
+                      type="text"
+                      value={rideLocationLabel}
+                      onChange={(e) => setRideLocationLabel(e.target.value)}
+                      placeholder="e.g. Angeles Crest, commute home"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                      data-testid="ride-location-label"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs text-gray-600 mb-1">Notes</label>
+                    <textarea
+                      value={rideLocationNotes}
+                      onChange={(e) => setRideLocationNotes(e.target.value)}
+                      rows={2}
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
+                      data-testid="ride-location-notes"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Approx. latitude</label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={rideLocationLat}
+                        onChange={(e) => setRideLocationLat(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm"
+                        data-testid="ride-location-lat"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-gray-600 mb-1">Approx. longitude</label>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={rideLocationLon}
+                        onChange={(e) => setRideLocationLon(e.target.value)}
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm"
+                        data-testid="ride-location-lon"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
                 <input
@@ -279,10 +549,10 @@ export default function SessionLogger() {
           ) : (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Existing Event</label>
-              {events && events.length === 0 && (
+              {filteredEvents.length === 0 && (
                 <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-2">
-                  No events in your account yet. Check <strong>Create new event</strong> above to add a track day, then
-                  you can log a session against it.
+                  No {eventVenue === 'track' ? 'track' : 'road'} events yet. Check{' '}
+                  <strong>Create new event</strong> above to add one, then log a session against it.
                 </p>
               )}
               <select
@@ -292,27 +562,30 @@ export default function SessionLogger() {
                 data-testid="event-select"
               >
                 <option value="">Select event...</option>
-                {events?.map((ev) => (
-                  <option key={ev.id} value={ev.id}>
-                    {ev.date} (Event {ev.id})
-                  </option>
-                ))}
+                {filteredEvents.map((ev) => {
+                  const place =
+                    ev.venue === 'track'
+                      ? trackNameById.get(ev.track_id ?? '') ?? 'Track'
+                      : ev.ride_location?.label ?? 'Road ride';
+                  return (
+                    <option key={ev.id} value={ev.id}>
+                      {ev.date} · {place}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           )}
 
           {createEvent.isError && (
             <p className="text-sm text-red-600" role="alert">
-              Could not create event. Check bike and track, then try again.
+              Could not create event. Check required fields and try again.
             </p>
           )}
 
           <button
             onClick={handleNextFromEvent}
-            disabled={
-              createEvent.isPending ||
-              (createNewEvent ? !bikeId || !trackId : !selectedEventId)
-            }
+            disabled={eventNextDisabled}
             className="px-4 py-2 min-h-[44px] bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
             data-testid="next-button"
           >
@@ -321,7 +594,6 @@ export default function SessionLogger() {
         </div>
       )}
 
-      {/* Step 2: Details */}
       {step === 'details' && (
         <div className="space-y-4" data-testid="step-details">
           <h3 className="text-lg font-semibold text-gray-800">Session Details</h3>
@@ -330,11 +602,11 @@ export default function SessionLogger() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Session Type *</label>
             <select
               value={sessionType}
-              onChange={(e) => setSessionType(e.target.value as typeof SESSION_TYPES[number])}
+              onChange={(e) => setSessionType(e.target.value as SessionType)}
               className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm focus:ring-2 focus:ring-blue-500 outline-none"
               data-testid="session-type-select"
             >
-              {SESSION_TYPES.map((t) => (
+              {allowedSessionTypes.map((t) => (
                 <option key={t} value={t}>
                   {t.charAt(0).toUpperCase() + t.slice(1)}
                 </option>
@@ -342,16 +614,91 @@ export default function SessionLogger() {
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Best Lap Time (ms)</label>
-            <input
-              type="number"
-              value={manualBestLapMs}
-              onChange={(e) => setManualBestLapMs(e.target.value)}
-              placeholder="e.g. 98432"
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm focus:ring-2 focus:ring-blue-500 outline-none"
-            />
-          </div>
+          {effectiveVenue === 'track' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Best Lap Time (ms)</label>
+              <input
+                type="number"
+                value={manualBestLapMs}
+                onChange={(e) => setManualBestLapMs(e.target.value)}
+                placeholder="e.g. 98432"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                data-testid="manual-best-lap"
+              />
+            </div>
+          )}
+
+          <fieldset
+            className={`border rounded-lg p-4 ${
+              effectiveVenue === 'road' ? 'border-blue-200 bg-blue-50/40' : 'border-gray-200'
+            }`}
+          >
+            <legend className="text-sm font-medium text-gray-700 px-1">
+              {effectiveVenue === 'road' ? 'Ride metrics' : 'Ride metrics (optional)'}
+            </legend>
+            {effectiveVenue === 'road' && (
+              <p className="text-xs text-gray-600 mb-3">
+                Optional stats from your ride — distance, time on bike, fuel, odometer.
+              </p>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Distance (km)</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={rmDistanceKm}
+                  onChange={(e) => setRmDistanceKm(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm"
+                  data-testid="ride-metric-distance"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Duration (minutes)</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={rmDurationMin}
+                  onChange={(e) => setRmDurationMin(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm"
+                  data-testid="ride-metric-duration"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Fuel used (L)</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={rmFuelL}
+                  onChange={(e) => setRmFuelL(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm"
+                  data-testid="ride-metric-fuel"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-1">Odometer (km)</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={rmOdometerKm}
+                  onChange={(e) => setRmOdometerKm(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm"
+                  data-testid="ride-metric-odometer"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="block text-xs text-gray-600 mb-1">Fuel efficiency (L/100km)</label>
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={rmEfficiency}
+                  onChange={(e) => setRmEfficiency(e.target.value)}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] text-sm"
+                  data-testid="ride-metric-efficiency"
+                />
+              </div>
+            </div>
+          </fieldset>
 
           <fieldset className="border border-gray-200 rounded-lg p-4">
             <legend className="text-sm font-medium text-gray-700 px-1">Tire Info</legend>
@@ -413,12 +760,14 @@ export default function SessionLogger() {
 
           <div className="flex gap-2">
             <button
+              type="button"
               onClick={() => setStep('event')}
               className="px-4 py-2 min-h-[44px] bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors"
             >
               Back
             </button>
             <button
+              type="button"
               onClick={handleNextFromDetails}
               className="px-4 py-2 min-h-[44px] bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
               data-testid="next-button"
@@ -429,67 +778,86 @@ export default function SessionLogger() {
         </div>
       )}
 
-      {/* Step 3: Upload */}
       {step === 'upload' && (
         <div className="space-y-4" data-testid="step-upload">
           <h3 className="text-lg font-semibold text-gray-800">Upload Data</h3>
-          <p className="text-sm text-gray-500">
-            Upload telemetry CSV, photos for OCR, or voice notes. You can also skip this step.
-          </p>
+
+          {effectiveVenue === 'road' ? (
+            <>
+              <p className="text-sm text-gray-600">
+                Telemetry uploads are optional for road rides. Skip ahead to review, or expand below to
+                attach CSV, photos, or voice.
+              </p>
+              <button
+                type="button"
+                onClick={() => setStep('review')}
+                className="px-4 py-2 min-h-[44px] bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                data-testid="skip-upload-button"
+              >
+                Skip to review
+              </button>
+            </>
+          ) : (
+            <p className="text-sm text-gray-500">
+              Upload telemetry CSV, photos for OCR, or voice notes. You can also skip this step.
+            </p>
+          )}
+
           {createSession.isError && (
             <p className="text-sm text-red-600" role="alert">
               Could not create session. Ensure you completed the event step with a valid event, then try again.
             </p>
           )}
 
-          <div className="grid gap-4">
-            {/* CSV Upload */}
-            <div className="border border-gray-200 rounded-lg p-4">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Telemetry CSV</h4>
-              <input
-                type="file"
-                accept=".csv"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleFileUpload('csv', file);
-                }}
-                className="text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 file:min-h-[44px]"
-                data-testid="csv-upload"
-              />
-            </div>
+          <div className={effectiveVenue === 'road' ? 'border border-gray-200 rounded-lg p-3' : ''}>
+            {effectiveVenue === 'road' && (
+              <p className="text-xs font-medium text-gray-600 mb-2">Optional uploads</p>
+            )}
+            <div className="grid gap-4">
+              <div className="border border-gray-200 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Telemetry CSV</h4>
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload('csv', file);
+                  }}
+                  className="text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 file:min-h-[44px]"
+                  data-testid="csv-upload"
+                />
+              </div>
 
-            {/* Photo/OCR Upload */}
-            <div className="border border-gray-200 rounded-lg p-4">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Photo (OCR)</h4>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleFileUpload('ocr', file);
-                }}
-                className="text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 file:min-h-[44px]"
-                data-testid="ocr-upload"
-              />
-            </div>
+              <div className="border border-gray-200 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Photo (OCR)</h4>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload('ocr', file);
+                  }}
+                  className="text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 file:min-h-[44px]"
+                  data-testid="ocr-upload"
+                />
+              </div>
 
-            {/* Voice Upload */}
-            <div className="border border-gray-200 rounded-lg p-4">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Voice Note</h4>
-              <input
-                type="file"
-                accept="audio/*"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file) handleFileUpload('voice', file);
-                }}
-                className="text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 file:min-h-[44px]"
-                data-testid="voice-upload"
-              />
+              <div className="border border-gray-200 rounded-lg p-4">
+                <h4 className="text-sm font-medium text-gray-700 mb-2">Voice Note</h4>
+                <input
+                  type="file"
+                  accept="audio/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileUpload('voice', file);
+                  }}
+                  className="text-sm text-gray-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 file:min-h-[44px]"
+                  data-testid="voice-upload"
+                />
+              </div>
             </div>
           </div>
 
-          {/* Ingestion progress */}
           {activeJobId && (
             <div className="space-y-3">
               <IngestionProgress
@@ -504,6 +872,7 @@ export default function SessionLogger() {
                     {JSON.stringify(ingestionJob.result, null, 2)}
                   </pre>
                   <button
+                    type="button"
                     onClick={handleConfirmIngestion}
                     className="mt-3 px-4 py-2 min-h-[44px] bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors"
                     data-testid="confirm-ingestion"
@@ -523,12 +892,14 @@ export default function SessionLogger() {
 
           <div className="flex gap-2">
             <button
+              type="button"
               onClick={() => setStep('details')}
               className="px-4 py-2 min-h-[44px] bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors"
             >
               Back
             </button>
             <button
+              type="button"
               onClick={() => setStep('review')}
               className="px-4 py-2 min-h-[44px] bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
               data-testid="next-button"
@@ -539,7 +910,6 @@ export default function SessionLogger() {
         </div>
       )}
 
-      {/* Step 4: Review */}
       {step === 'review' && (
         <div className="space-y-4" data-testid="step-review">
           <h3 className="text-lg font-semibold text-gray-800">Review & Save</h3>
@@ -549,12 +919,19 @@ export default function SessionLogger() {
               <span className="text-gray-500">Session Type</span>
               <span className="font-medium text-gray-900 capitalize">{sessionType}</span>
             </div>
-            {manualBestLapMs && (
+            {effectiveVenue === 'track' && manualBestLapMs && (
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Best Lap</span>
                 <span className="font-medium text-gray-900">{manualBestLapMs}ms</span>
               </div>
             )}
+            {rideMetricsPayload &&
+              formatMetricReview(rideMetricsPayload).map((row) => (
+                <div key={row.k} className="flex justify-between text-sm">
+                  <span className="text-gray-500">{row.k}</span>
+                  <span className="font-medium text-gray-900">{row.v}</span>
+                </div>
+              ))}
             {tireFrontBrand && (
               <div className="flex justify-between text-sm">
                 <span className="text-gray-500">Front Tire</span>
@@ -587,12 +964,14 @@ export default function SessionLogger() {
 
           <div className="flex gap-2">
             <button
+              type="button"
               onClick={() => setStep('upload')}
               className="px-4 py-2 min-h-[44px] bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors"
             >
               Back
             </button>
             <button
+              type="button"
               onClick={handleSaveSession}
               disabled={createSession.isPending || (!createdSessionId && !selectedEventId)}
               className="px-4 py-2 min-h-[44px] bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"

@@ -8,7 +8,9 @@ const MOCK_EVENTS: TrackEvent[] = [
     id: 'event-1',
     user_id: 'user-1',
     bike_id: 'bike-1',
+    venue: 'track',
     track_id: 'track-1',
+    ride_location: null,
     date: '2025-09-12',
     conditions: {
       temp_c: 28,
@@ -25,7 +27,9 @@ const MOCK_EVENTS: TrackEvent[] = [
     id: 'event-2',
     user_id: 'user-1',
     bike_id: 'bike-2',
+    venue: 'track',
     track_id: 'track-2',
+    ride_location: null,
     date: '2025-10-05',
     conditions: {
       temp_c: 18,
@@ -42,7 +46,9 @@ const MOCK_EVENTS: TrackEvent[] = [
     id: 'event-3',
     user_id: 'user-1',
     bike_id: 'bike-1',
+    venue: 'track',
     track_id: 'track-3',
+    ride_location: null,
     date: '2025-11-20',
     conditions: {
       temp_c: 32,
@@ -59,7 +65,9 @@ const MOCK_EVENTS: TrackEvent[] = [
     id: 'event-4',
     user_id: 'user-1',
     bike_id: 'bike-2',
+    venue: 'track',
     track_id: 'track-1',
+    ride_location: null,
     date: '2026-01-15',
     conditions: {
       temp_c: 12,
@@ -72,6 +80,23 @@ const MOCK_EVENTS: TrackEvent[] = [
     created_at: '2026-01-13T11:00:00Z',
     updated_at: '2026-01-15T15:00:00Z',
   },
+  {
+    id: 'event-road-1',
+    user_id: 'user-1',
+    bike_id: 'bike-1',
+    venue: 'road',
+    track_id: null,
+    ride_location: {
+      label: 'Commute — SF to Oakland',
+      notes: 'Heavy traffic on bridge.',
+      approximate_lat: 37.8,
+      approximate_lon: -122.3,
+    },
+    date: '2026-02-01',
+    conditions: { condition: 'dry', temp_c: 16 },
+    created_at: '2026-02-01T08:00:00Z',
+    updated_at: '2026-02-01T18:00:00Z',
+  },
 ];
 
 const eventsState: TrackEvent[] = MOCK_EVENTS.map((e) => ({ ...e, conditions: { ...e.conditions } }));
@@ -82,12 +107,16 @@ export const eventHandlers = [
     const url = new URL(request.url);
     const bikeId = url.searchParams.get('bike_id');
     const trackId = url.searchParams.get('track_id');
+    const venue = url.searchParams.get('venue');
     const fromDate = url.searchParams.get('from_date');
     const toDate = url.searchParams.get('to_date');
 
     let filtered = [...eventsState];
     if (bikeId) filtered = filtered.filter((e) => e.bike_id === bikeId);
     if (trackId) filtered = filtered.filter((e) => e.track_id === trackId);
+    if (venue === 'track' || venue === 'road') {
+      filtered = filtered.filter((e) => e.venue === venue);
+    }
     if (fromDate) filtered = filtered.filter((e) => e.date >= fromDate);
     if (toDate) filtered = filtered.filter((e) => e.date <= toDate);
 
@@ -97,11 +126,16 @@ export const eventHandlers = [
   // POST /api/v1/garage/events
   http.post(`${BASE}/garage/events`, async ({ request }) => {
     const body = (await request.json()) as CreateEventRequest;
+    const venue =
+      body.venue ??
+      (body.track_id ? 'track' : body.ride_location ? 'road' : 'track');
     const newEvent: TrackEvent = {
       id: `event-${Date.now()}`,
       user_id: 'user-1',
       bike_id: body.bike_id,
-      track_id: body.track_id,
+      venue,
+      track_id: body.track_id ?? null,
+      ride_location: body.ride_location ?? null,
       date: body.date,
       conditions: body.conditions ?? {},
       created_at: new Date().toISOString(),

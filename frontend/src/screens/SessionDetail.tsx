@@ -6,6 +6,7 @@ import {
   useUpdateSession,
   useCreateChange,
 } from '@/hooks/useSessions';
+import { useEvent } from '@/hooks/useEvents';
 import {
   useSuggestions,
   useSuggestion,
@@ -33,6 +34,8 @@ function formatLapTime(ms: number): string {
 export default function SessionDetail() {
   const { id } = useParams<{ id: string }>();
   const { data: session, isLoading, error, refetch } = useSession(id);
+  const { data: parentEvent } = useEvent(session?.event_id);
+  const isRoadEvent = parentEvent?.venue === 'road';
   const { data: changeLog } = useChangeLog(id);
   const updateSession = useUpdateSession();
   const createChange = useCreateChange();
@@ -121,15 +124,16 @@ export default function SessionDetail() {
     },
   );
 
-  // Telemetry state
-  const { data: channelSummary } = useChannels(id);
-  const { data: analysis } = useAnalysis(id);
+  const telemetrySessionId = !isRoadEvent ? id : undefined;
+
+  const { data: channelSummary } = useChannels(telemetrySessionId);
+  const { data: analysis } = useAnalysis(telemetrySessionId);
   const totalLaps = analysis?.lap_segments?.length ?? 0;
   const [selectedLap, setSelectedLap] = useState(1);
   const [activeChannels, setActiveChannels] = useState<string[]>(['gps_speed', 'throttle_pos']);
   const { data: lapData } = useLapData(
-    totalLaps > 0 ? id : undefined,
-    totalLaps > 0 ? selectedLap : undefined,
+    !isRoadEvent && totalLaps > 0 ? id : undefined,
+    !isRoadEvent && totalLaps > 0 ? selectedLap : undefined,
   );
 
   const handleRequestSuggestion = useCallback(async () => {
@@ -232,7 +236,7 @@ export default function SessionDetail() {
             Created {new Date(session.created_at).toLocaleDateString()}
           </p>
         </div>
-        {bestLap != null && (
+        {!isRoadEvent && bestLap != null && (
           <div className="sm:text-right">
             <p className="text-xs text-gray-400 uppercase tracking-wider">Best Lap</p>
             <p className="text-2xl font-bold text-green-600" data-testid="best-lap">
@@ -246,7 +250,9 @@ export default function SessionDetail() {
       <div className="bg-gray-50 rounded-lg p-4 border border-gray-200 space-y-2">
         <h3 className="text-sm font-semibold text-gray-700">Session notes</h3>
         <p className="text-xs text-gray-500">
-          How the bike felt, track conditions, anything the team should remember (also used as AI context).
+          {isRoadEvent
+            ? 'How the bike felt, route or traffic notes — also used as AI context.'
+            : 'How the bike felt, track conditions, anything the team should remember (also used as AI context).'}
         </p>
         <textarea
           value={notesDraft}
@@ -270,6 +276,56 @@ export default function SessionDetail() {
           )}
         </div>
       </div>
+
+      {session.ride_metrics &&
+        (session.ride_metrics.distance_km != null ||
+          session.ride_metrics.duration_ms != null ||
+          session.ride_metrics.fuel_used_l != null ||
+          session.ride_metrics.odometer_km != null ||
+          session.ride_metrics.fuel_efficiency_l_per_100km != null) && (
+          <div
+            className="bg-white rounded-lg border border-gray-200 p-4"
+            data-testid="ride-metrics-section"
+          >
+            <h3 className="text-sm font-semibold text-gray-800 mb-3">Ride metrics</h3>
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
+              {session.ride_metrics.distance_km != null && (
+                <>
+                  <dt className="text-gray-500">Distance</dt>
+                  <dd className="font-medium text-gray-900">{session.ride_metrics.distance_km} km</dd>
+                </>
+              )}
+              {session.ride_metrics.duration_ms != null && (
+                <>
+                  <dt className="text-gray-500">Duration</dt>
+                  <dd className="font-medium text-gray-900">
+                    {(session.ride_metrics.duration_ms / 60000).toFixed(1)} min
+                  </dd>
+                </>
+              )}
+              {session.ride_metrics.fuel_used_l != null && (
+                <>
+                  <dt className="text-gray-500">Fuel used</dt>
+                  <dd className="font-medium text-gray-900">{session.ride_metrics.fuel_used_l} L</dd>
+                </>
+              )}
+              {session.ride_metrics.odometer_km != null && (
+                <>
+                  <dt className="text-gray-500">Odometer</dt>
+                  <dd className="font-medium text-gray-900">{session.ride_metrics.odometer_km} km</dd>
+                </>
+              )}
+              {session.ride_metrics.fuel_efficiency_l_per_100km != null && (
+                <>
+                  <dt className="text-gray-500">Fuel economy</dt>
+                  <dd className="font-medium text-gray-900">
+                    {session.ride_metrics.fuel_efficiency_l_per_100km} L/100km
+                  </dd>
+                </>
+              )}
+            </dl>
+          </div>
+        )}
 
       {/* Tire Info */}
       {(session.tire_front || session.tire_rear) && (
@@ -460,8 +516,8 @@ export default function SessionDetail() {
         )}
       </div>
 
-      {/* Telemetry */}
-      {channelSummary && channelSummary.channels.length > 0 && (
+      {/* Telemetry — hidden for road events to avoid irrelevant empty/error states */}
+      {!isRoadEvent && channelSummary && channelSummary.channels.length > 0 && (
         <div data-testid="telemetry-section">
           <h3 className="text-lg font-semibold text-gray-800 mb-3">Telemetry</h3>
 

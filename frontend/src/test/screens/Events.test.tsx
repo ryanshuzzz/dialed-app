@@ -57,7 +57,9 @@ const mockEvents: TrackEvent[] = [
     id: 'event-1',
     user_id: 'user-1',
     bike_id: 'bike-1',
+    venue: 'track',
     track_id: 'track-1',
+    ride_location: null,
     date: '2025-09-12',
     conditions: {
       temp_c: 28,
@@ -71,7 +73,9 @@ const mockEvents: TrackEvent[] = [
     id: 'event-2',
     user_id: 'user-1',
     bike_id: 'bike-2',
+    venue: 'track',
     track_id: 'track-2',
+    ride_location: null,
     date: '2025-10-05',
     conditions: {
       temp_c: 18,

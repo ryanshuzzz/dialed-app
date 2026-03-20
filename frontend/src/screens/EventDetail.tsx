@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useEvent, useUpdateEvent, useDeleteEvent } from '@/hooks/useEvents';
 import { useBikes } from '@/hooks/useBikes';
-import { useTrack } from '@/hooks/useTracks';
+import { useTrack, useTracks } from '@/hooks/useTracks';
 import { Modal } from '@/components/common/Modal';
-import type { Conditions, UpdateEventRequest } from '@/api/types';
+import type { Conditions, EventVenue, UpdateEventRequest } from '@/api/types';
 
 const CONDITION_OPTIONS = ['dry', 'damp', 'wet', 'mixed'] as const;
 
@@ -13,13 +13,20 @@ export default function EventDetail() {
   const navigate = useNavigate();
   const { data: event, isLoading, isError } = useEvent(id);
   const { data: bikes } = useBikes();
-  const { data: track } = useTrack(event?.track_id);
+  const { data: tracks } = useTracks();
+  const { data: track } = useTrack(event?.track_id ?? undefined);
   const updateEvent = useUpdateEvent();
   const deleteEvent = useDeleteEvent();
 
   const [editing, setEditing] = useState(false);
   const [editDate, setEditDate] = useState('');
   const [editConditions, setEditConditions] = useState<Conditions>({});
+  const [editVenue, setEditVenue] = useState<EventVenue>('track');
+  const [editTrackId, setEditTrackId] = useState('');
+  const [editRideLabel, setEditRideLabel] = useState('');
+  const [editRideNotes, setEditRideNotes] = useState('');
+  const [editRideLat, setEditRideLat] = useState('');
+  const [editRideLon, setEditRideLon] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const bikeName = bikes?.find((b) => b.id === event?.bike_id);
@@ -28,15 +35,43 @@ export default function EventDetail() {
     if (!event) return;
     setEditDate(event.date);
     setEditConditions({ ...event.conditions });
+    setEditVenue(event.venue);
+    setEditTrackId(event.track_id ?? '');
+    setEditRideLabel(event.ride_location?.label ?? '');
+    setEditRideNotes(event.ride_location?.notes ?? '');
+    setEditRideLat(
+      event.ride_location?.approximate_lat != null
+        ? String(event.ride_location.approximate_lat)
+        : '',
+    );
+    setEditRideLon(
+      event.ride_location?.approximate_lon != null
+        ? String(event.ride_location.approximate_lon)
+        : '',
+    );
     setEditing(true);
   };
 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     if (!id || !editDate) return;
+    if (editVenue === 'track' && !editTrackId) return;
+    if (editVenue === 'road' && !editRideLabel.trim()) return;
+
     const data: UpdateEventRequest = {
       date: editDate,
       conditions: editConditions,
+      venue: editVenue,
+      track_id: editVenue === 'track' ? editTrackId : null,
+      ride_location:
+        editVenue === 'road'
+          ? {
+              label: editRideLabel.trim(),
+              notes: editRideNotes.trim() || null,
+              approximate_lat: editRideLat.trim() ? parseFloat(editRideLat) : null,
+              approximate_lon: editRideLon.trim() ? parseFloat(editRideLon) : null,
+            }
+          : null,
     };
     updateEvent.mutate(
       { eventId: id, data },
@@ -97,6 +132,106 @@ export default function EventDetail() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
             </div>
+
+            <fieldset className="border border-gray-200 rounded-lg p-4">
+              <legend className="text-sm font-medium text-gray-700 px-1">Venue</legend>
+              <div className="flex flex-wrap gap-4">
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="radio"
+                    name="edit-venue"
+                    checked={editVenue === 'track'}
+                    onChange={() => setEditVenue('track')}
+                    className="w-4 h-4"
+                  />
+                  Track day
+                </label>
+                <label className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="radio"
+                    name="edit-venue"
+                    checked={editVenue === 'road'}
+                    onChange={() => setEditVenue('road')}
+                    className="w-4 h-4"
+                  />
+                  Road ride
+                </label>
+              </div>
+            </fieldset>
+
+            {editVenue === 'track' ? (
+              <div>
+                <label htmlFor="edit-track" className="block text-sm font-medium text-gray-700 mb-1">
+                  Track *
+                </label>
+                <select
+                  id="edit-track"
+                  required
+                  value={editTrackId}
+                  onChange={(e) => setEditTrackId(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select track</option>
+                  {tracks?.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              <div className="space-y-3 border border-gray-200 rounded-lg p-4">
+                <p className="text-sm font-medium text-gray-800">Ride location</p>
+                <div>
+                  <label htmlFor="edit-ride-label" className="block text-xs text-gray-600 mb-1">
+                    Label *
+                  </label>
+                  <input
+                    id="edit-ride-label"
+                    required
+                    value={editRideLabel}
+                    onChange={(e) => setEditRideLabel(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div>
+                  <label htmlFor="edit-ride-notes" className="block text-xs text-gray-600 mb-1">
+                    Notes
+                  </label>
+                  <textarea
+                    id="edit-ride-notes"
+                    rows={2}
+                    value={editRideNotes}
+                    onChange={(e) => setEditRideNotes(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label htmlFor="edit-ride-lat" className="block text-xs text-gray-600 mb-1">
+                      Lat
+                    </label>
+                    <input
+                      id="edit-ride-lat"
+                      value={editRideLat}
+                      onChange={(e) => setEditRideLat(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="edit-ride-lon" className="block text-xs text-gray-600 mb-1">
+                      Lon
+                    </label>
+                    <input
+                      id="edit-ride-lon"
+                      value={editRideLon}
+                      onChange={(e) => setEditRideLon(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
 
             <fieldset className="border border-gray-200 rounded-lg p-4">
               <legend className="text-sm font-medium text-gray-700 px-1">Conditions</legend>
@@ -220,9 +355,28 @@ export default function EventDetail() {
         <div>
           <div className="flex items-start justify-between mb-6">
             <div>
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <span
+                  className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                    event.venue === 'road'
+                      ? 'bg-amber-100 text-amber-800'
+                      : 'bg-blue-100 text-blue-800'
+                  }`}
+                  data-testid="event-venue-badge"
+                >
+                  {event.venue === 'road' ? 'Road' : 'Track'}
+                </span>
+              </div>
               <h2 className="text-2xl font-bold text-gray-900" data-testid="event-track-name">
-                {track?.name ?? 'Loading track...'}
+                {event.venue === 'road'
+                  ? event.ride_location?.label ?? 'Road ride'
+                  : track?.name ?? 'Track'}
               </h2>
+              {event.venue === 'road' && event.ride_location?.notes && (
+                <p className="text-sm text-gray-600 mt-1" data-testid="event-ride-notes">
+                  {event.ride_location.notes}
+                </p>
+              )}
               <p className="text-sm text-gray-600 mt-1" data-testid="event-date">
                 {event.date}
               </p>
