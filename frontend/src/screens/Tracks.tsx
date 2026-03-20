@@ -42,7 +42,7 @@ export default function Tracks() {
     return (
       <div>
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Tracks</h2>
+          <h2 className="text-2xl font-bold text-foreground">Tracks</h2>
         </div>
         <LoadingSkeleton variant="cards" count={3} />
       </div>
@@ -53,7 +53,7 @@ export default function Tracks() {
     return (
       <div>
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Tracks</h2>
+          <h2 className="text-2xl font-bold text-foreground">Tracks</h2>
         </div>
         <ErrorState message="Failed to load tracks. Please try again." onRetry={() => refetch()} />
       </div>
@@ -63,10 +63,10 @@ export default function Tracks() {
   return (
     <div>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Tracks</h2>
+        <h2 className="text-2xl font-bold text-foreground">Tracks</h2>
         <button
           onClick={() => setShowAdd(true)}
-          className="px-4 py-2 min-h-[44px] bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          className="px-4 py-2 min-h-[44px] bg-accent-orange text-white text-sm font-medium rounded-lg hover:bg-accent-orange-hover transition-colors"
           data-testid="add-track-button"
         >
           Add Track
@@ -80,7 +80,7 @@ export default function Tracks() {
             placeholder="Search tracks..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full md:max-w-sm px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            className="w-full md:max-w-sm px-3 py-2 min-h-[44px] border border-border rounded-lg text-sm focus:ring-1 focus:ring-accent-orange focus:border-accent-orange"
             data-testid="track-search"
           />
         </div>
@@ -92,21 +92,21 @@ export default function Tracks() {
             <Link
               key={track.id}
               to={`/tracks/${track.id}`}
-              className="block p-4 bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow"
+              className="block p-4 bg-background-surface border border-border-subtle rounded-lg shadow-sm hover:shadow-md transition-shadow"
               data-testid="track-card"
             >
-              <h3 className="text-lg font-semibold text-gray-900">{track.name}</h3>
+              <h3 className="text-lg font-semibold text-foreground">{track.name}</h3>
               {track.config && (
-                <p className="text-sm text-gray-600 mt-1">{track.config}</p>
+                <p className="text-sm text-foreground-secondary mt-1">{track.config}</p>
               )}
               {track.surface_notes && (
-                <p className="text-sm text-gray-500 mt-2 line-clamp-2">{track.surface_notes}</p>
+                <p className="text-sm text-foreground-muted mt-2 line-clamp-2">{track.surface_notes}</p>
               )}
             </Link>
           ))}
         </div>
       ) : tracks && tracks.length > 0 ? (
-        <p className="text-gray-500 text-sm">No tracks match your search.</p>
+        <p className="text-foreground-muted text-sm">No tracks match your search.</p>
       ) : (
         <EmptyState
           title="No tracks yet"
@@ -119,7 +119,7 @@ export default function Tracks() {
         <form onSubmit={handleSubmit} data-testid="add-track-form">
           <div className="space-y-4">
             <div>
-              <label htmlFor="track-name" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="track-name" className="block text-sm font-medium text-foreground-secondary mb-1">
                 Name *
               </label>
               <input
@@ -128,13 +128,13 @@ export default function Tracks() {
                 required
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 min-h-[44px] border border-border rounded-lg text-sm focus:ring-1 focus:ring-accent-orange focus:border-accent-orange"
                 placeholder="e.g. Mugello"
               />
             </div>
 
             <div>
-              <label htmlFor="track-config" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="track-config" className="block text-sm font-medium text-foreground-secondary mb-1">
                 Configuration
               </label>
               <input
@@ -142,13 +142,13 @@ export default function Tracks() {
                 type="text"
                 value={form.config ?? ''}
                 onChange={(e) => setForm((f) => ({ ...f, config: e.target.value || null }))}
-                className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 min-h-[44px] border border-border rounded-lg text-sm focus:ring-1 focus:ring-accent-orange focus:border-accent-orange"
                 placeholder="e.g. Full Circuit, Short Course"
               />
             </div>
 
             <div>
-              <label htmlFor="track-surface" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="track-surface" className="block text-sm font-medium text-foreground-secondary mb-1">
                 Surface Notes
               </label>
               <textarea
@@ -156,7 +156,7 @@ export default function Tracks() {
                 rows={3}
                 value={form.surface_notes ?? ''}
                 onChange={(e) => setForm((f) => ({ ...f, surface_notes: e.target.value || null }))}
-                className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 min-h-[44px] border border-border rounded-lg text-sm focus:ring-1 focus:ring-accent-orange focus:border-accent-orange"
                 placeholder="Surface type, grip conditions, etc."
               />
             </div>
@@ -166,14 +166,14 @@ export default function Tracks() {
             <button
               type="button"
               onClick={() => setShowAdd(false)}
-              className="px-4 py-2 min-h-[44px] text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              className="px-4 py-2 min-h-[44px] text-sm font-medium text-foreground-secondary bg-background-elevated rounded-lg hover:bg-border-subtle transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={createTrack.isPending}
-              className="px-4 py-2 min-h-[44px] text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="px-4 py-2 min-h-[44px] text-sm font-medium text-white bg-accent-orange rounded-lg hover:bg-accent-orange-hover disabled:opacity-50 transition-colors"
             >
               {createTrack.isPending ? 'Adding...' : 'Add Track'}
             </button>

@@ -1,11 +1,13 @@
-import { useState } from 'react';
-import { useBikes, useCreateBike } from '@/hooks/useBikes';
-import { BikeCard } from '@/components/garage/BikeCard';
-import { EmptyState } from '@/components/common/EmptyState';
-import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
-import { ErrorState } from '@/components/common/ErrorState';
-import { Modal } from '@/components/common/Modal';
-import type { CreateBikeRequest } from '@/api/types';
+import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { Plus, ChevronRight, Wrench } from 'lucide-react'
+import { useBikes, useCreateBike } from '@/hooks/useBikes'
+import { EmptyState } from '@/components/common/EmptyState'
+import { LoadingSkeleton } from '@/components/common/LoadingSkeleton'
+import { ErrorState } from '@/components/common/ErrorState'
+import { Modal } from '@/components/common/Modal'
+import { Button } from '@/components/ui/button'
+import type { CreateBikeRequest } from '@/api/types'
 
 const INITIAL_FORM: CreateBikeRequest = {
   make: '',
@@ -14,64 +16,105 @@ const INITIAL_FORM: CreateBikeRequest = {
   color: null,
   mileage_km: null,
   status: 'owned',
-};
+}
 
 export default function Garage() {
-  const { data: bikes, isLoading, isError, refetch } = useBikes();
-  const createBike = useCreateBike();
-  const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState<CreateBikeRequest>({ ...INITIAL_FORM });
+  const { data: bikes, isLoading, isError, refetch } = useBikes()
+  const createBike = useCreateBike()
+  const [showAdd, setShowAdd] = useState(false)
+  const [form, setForm] = useState<CreateBikeRequest>({ ...INITIAL_FORM })
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.make.trim() || !form.model.trim()) return;
+    e.preventDefault()
+    if (!form.make.trim() || !form.model.trim()) return
     createBike.mutate(form, {
       onSuccess: () => {
-        setShowAdd(false);
-        setForm({ ...INITIAL_FORM });
+        setShowAdd(false)
+        setForm({ ...INITIAL_FORM })
       },
-    });
-  };
+    })
+  }
 
   if (isLoading) {
     return (
       <div>
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Garage</h2>
+          <div>
+            <h1 className="font-mono text-2xl font-semibold text-foreground">Garage</h1>
+            <p className="mt-1 text-sm text-foreground-secondary">Loading...</p>
+          </div>
         </div>
         <LoadingSkeleton variant="cards" count={3} />
       </div>
-    );
+    )
   }
 
   if (isError) {
     return (
       <div>
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-2xl font-bold text-gray-900">Garage</h2>
+          <h1 className="font-mono text-2xl font-semibold text-foreground">Garage</h1>
         </div>
         <ErrorState message="Failed to load bikes. Please try again." onRetry={() => refetch()} />
       </div>
-    );
+    )
   }
 
+  const bikeCount = bikes?.length ?? 0
+
   return (
-    <div>
-      <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-900">Garage</h2>
-        <button
+    <div className="pb-8">
+      {/* Header */}
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="font-mono text-2xl font-semibold text-foreground">Garage</h1>
+          <p className="mt-1 text-sm text-foreground-secondary">
+            {bikeCount} bike{bikeCount !== 1 ? 's' : ''}
+          </p>
+        </div>
+        <Button
           onClick={() => setShowAdd(true)}
-          className="px-4 py-2 min-h-[44px] bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          className="h-9 gap-1.5 rounded bg-accent-orange px-3 text-sm font-medium text-white hover:bg-accent-orange-hover"
           data-testid="add-bike-button"
         >
+          <Plus className="h-4 w-4" />
           Add Bike
-        </button>
+        </Button>
       </div>
 
       {bikes && bikes.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" data-testid="bike-grid">
+        <div className="flex flex-col gap-3" data-testid="bike-grid">
           {bikes.map((bike) => (
-            <BikeCard key={bike.id} bike={bike} />
+            <Link key={bike.id} to={`/bikes/${bike.id}`}>
+              <div className="group relative flex items-center gap-4 rounded-lg border border-border-subtle bg-background-surface p-4 transition-colors hover:border-border active:bg-background-elevated">
+                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-background-elevated">
+                  <Wrench className="h-6 w-6 text-foreground-muted" />
+                </div>
+
+                <div className="flex-1">
+                  <h3 className="font-medium text-foreground">
+                    {bike.year ? `${bike.year} ` : ''}
+                    {bike.make} {bike.model}
+                  </h3>
+                  <div className="mt-1 flex items-center gap-2 text-sm text-foreground-secondary">
+                    <span>{bike.status}</span>
+                    {bike.mileage_km != null && (
+                      <>
+                        <span className="text-foreground-muted">·</span>
+                        <span>{bike.mileage_km.toLocaleString()} km</span>
+                      </>
+                    )}
+                  </div>
+                  {bike.color && (
+                    <div className="mt-1 text-xs text-foreground-muted">
+                      {bike.color}
+                    </div>
+                  )}
+                </div>
+
+                <ChevronRight className="h-5 w-5 text-foreground-muted transition-colors group-hover:text-foreground-secondary" />
+              </div>
+            </Link>
           ))}
         </div>
       ) : (
@@ -86,7 +129,7 @@ export default function Garage() {
         <form onSubmit={handleSubmit} data-testid="add-bike-form">
           <div className="space-y-4">
             <div>
-              <label htmlFor="make" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="make" className="block text-sm font-medium text-foreground-secondary mb-1">
                 Make *
               </label>
               <input
@@ -95,13 +138,13 @@ export default function Garage() {
                 required
                 value={form.make}
                 onChange={(e) => setForm((f) => ({ ...f, make: e.target.value }))}
-                className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 min-h-[44px] border border-border-subtle bg-background-elevated rounded-lg text-sm text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-accent-orange focus:border-accent-orange outline-none"
                 placeholder="e.g. Ducati"
               />
             </div>
 
             <div>
-              <label htmlFor="model" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="model" className="block text-sm font-medium text-foreground-secondary mb-1">
                 Model *
               </label>
               <input
@@ -110,14 +153,14 @@ export default function Garage() {
                 required
                 value={form.model}
                 onChange={(e) => setForm((f) => ({ ...f, model: e.target.value }))}
-                className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 min-h-[44px] border border-border-subtle bg-background-elevated rounded-lg text-sm text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-accent-orange focus:border-accent-orange outline-none"
                 placeholder="e.g. Panigale V4"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="year" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="year" className="block text-sm font-medium text-foreground-secondary mb-1">
                   Year
                 </label>
                 <input
@@ -132,12 +175,12 @@ export default function Garage() {
                       year: e.target.value ? Number(e.target.value) : null,
                     }))
                   }
-                  className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 min-h-[44px] border border-border-subtle bg-background-elevated rounded-lg text-sm text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-accent-orange focus:border-accent-orange outline-none"
                   placeholder="2024"
                 />
               </div>
               <div>
-                <label htmlFor="color" className="block text-sm font-medium text-gray-700 mb-1">
+                <label htmlFor="color" className="block text-sm font-medium text-foreground-secondary mb-1">
                   Color
                 </label>
                 <input
@@ -147,14 +190,14 @@ export default function Garage() {
                   onChange={(e) =>
                     setForm((f) => ({ ...f, color: e.target.value || null }))
                   }
-                  className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 min-h-[44px] border border-border-subtle bg-background-elevated rounded-lg text-sm text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-accent-orange focus:border-accent-orange outline-none"
                   placeholder="Red"
                 />
               </div>
             </div>
 
             <div>
-              <label htmlFor="mileage" className="block text-sm font-medium text-gray-700 mb-1">
+              <label htmlFor="mileage" className="block text-sm font-medium text-foreground-secondary mb-1">
                 Mileage (km)
               </label>
               <input
@@ -168,30 +211,31 @@ export default function Garage() {
                     mileage_km: e.target.value ? Number(e.target.value) : null,
                   }))
                 }
-                className="w-full px-3 py-2 min-h-[44px] border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 min-h-[44px] border border-border-subtle bg-background-elevated rounded-lg text-sm text-foreground placeholder:text-foreground-muted focus:ring-2 focus:ring-accent-orange focus:border-accent-orange outline-none"
                 placeholder="0"
               />
             </div>
           </div>
 
           <div className="flex justify-end gap-3 mt-6">
-            <button
+            <Button
               type="button"
+              variant="outline"
               onClick={() => setShowAdd(false)}
-              className="px-4 py-2 min-h-[44px] text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              className="min-h-[44px] border-border text-foreground"
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               type="submit"
               disabled={createBike.isPending}
-              className="px-4 py-2 min-h-[44px] text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="min-h-[44px] bg-accent-orange text-white hover:bg-accent-orange-hover disabled:opacity-50"
             >
               {createBike.isPending ? 'Adding...' : 'Add Bike'}
-            </button>
+            </Button>
           </div>
         </form>
       </Modal>
     </div>
-  );
+  )
 }

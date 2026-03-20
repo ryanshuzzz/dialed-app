@@ -19,17 +19,19 @@ export type NavItem =
   | 'admin'
   | 'settings'
   | 'tracks'
-  | 'events';
+  | 'events'
+  | 'ai';
 
 const NAV_VISIBILITY: Record<RiderType, Set<NavItem>> = {
   street: new Set(['garage', 'settings']),
-  casual_track: new Set(['garage', 'sessions', 'tracks', 'events', 'progress', 'settings']),
+  casual_track: new Set(['garage', 'sessions', 'tracks', 'events', 'progress', 'ai', 'settings']),
   competitive: new Set([
     'garage',
     'sessions',
     'tracks',
     'events',
     'progress',
+    'ai',
     'admin',
     'settings',
   ]),

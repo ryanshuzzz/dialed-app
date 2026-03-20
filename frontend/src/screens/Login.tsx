@@ -1,188 +1,157 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiPost, apiGet, ApiError } from '@/api/client';
+import { useLogin, useRegister } from '@/hooks/useAuth';
 import { useAuthStore } from '@/stores/authStore';
-import type { AuthResponse, LoginRequest, RegisterRequest, UserProfile } from '@/api/types';
 
 type Mode = 'login' | 'register';
 
 export default function Login() {
   const navigate = useNavigate();
-  const setToken = useAuthStore((s) => s.setToken);
-  const login = useAuthStore((s) => s.login);
+  const login = useLogin();
+  const register = useRegister();
+  const token = useAuthStore((s) => s.token);
 
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  function toggleMode() {
-    setMode((m) => (m === 'login' ? 'register' : 'login'));
-    setError(null);
+  // If already logged in, redirect
+  if (token) {
+    navigate('/', { replace: true });
+    return null;
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  const isPending = login.isPending || register.isPending;
+
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setIsSubmitting(true);
 
-    try {
-      let authResp: AuthResponse;
+    if (!email.trim() || !password.trim()) {
+      setError('Email and password are required.');
+      return;
+    }
 
-      if (mode === 'register') {
-        const body: RegisterRequest = {
-          email: email.trim(),
-          password,
-          ...(displayName.trim() ? { display_name: displayName.trim() } : {}),
-        };
-        authResp = await apiPost<AuthResponse>('/auth/register', body);
-      } else {
-        const body: LoginRequest = {
-          email: email.trim(),
-          password,
-        };
-        authResp = await apiPost<AuthResponse>('/auth/login', body);
-      }
-
-      // Store the token first so the next request can attach it.
-      setToken(authResp.token);
-
-      // Fetch full profile now that we have a valid token.
-      const profile = await apiGet<UserProfile>('/auth/me');
-
-      login(authResp.token, authResp.refresh_token, profile);
-
-      navigate('/', { replace: true });
-    } catch (err) {
-      let msg: string;
-      if (err instanceof ApiError) {
-        msg = err.message;
-      } else if (err instanceof TypeError && err.message === 'Failed to fetch') {
-        msg =
-          'Cannot reach the API (e.g. gateway on port 8000). For frontend-only dev, MSW must be running — check the browser console for [MSW] errors, or start the full stack with Docker.';
-      } else {
-        msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
-      }
-      setError(msg);
-    } finally {
-      setIsSubmitting(false);
+    if (mode === 'login') {
+      login.mutate(
+        { email: email.trim(), password },
+        {
+          onSuccess: () => navigate('/', { replace: true }),
+          onError: (err) => setError(err instanceof Error ? err.message : 'Login failed. Please check your credentials.'),
+        },
+      );
+    } else {
+      register.mutate(
+        { email: email.trim(), password, display_name: displayName.trim() || undefined },
+        {
+          onSuccess: () => navigate('/', { replace: true }),
+          onError: (err) => setError(err instanceof Error ? err.message : 'Registration failed. Please try again.'),
+        },
+      );
     }
   }
 
+  function toggleMode() {
+    setMode(mode === 'login' ? 'register' : 'login');
+    setError(null);
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm">
-        {/* Logo / brand */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-blue-800">Dialed</h1>
-          <p className="text-sm text-gray-500 mt-1">Motorcycle management and tuning</p>
+        {/* Logo */}
+        <div className="flex justify-center mb-10">
+          <img src="/dialed_logo_v2.svg" alt="Dialed" className="h-14" />
         </div>
 
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-6">
-            {mode === 'login' ? 'Sign in to your account' : 'Create an account'}
-          </h2>
-
-          {error && (
-            <div
-              className="mb-4 px-3 py-2 rounded-md bg-red-50 border border-red-200 text-sm text-red-700"
-              data-testid="auth-error"
-            >
-              {error}
-            </div>
-          )}
+        {/* Form card */}
+        <div className="bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-700">
+          <h1 className="text-xl font-semibold text-white mb-6 text-center">
+            {mode === 'login' ? 'Sign In' : 'Create Account'}
+          </h1>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === 'register' && (
               <div>
-                <label
-                  htmlFor="display-name"
-                  className="block text-sm font-medium text-gray-700 mb-1"
-                >
-                  Display Name (optional)
+                <label htmlFor="display-name" className="block text-sm font-medium text-gray-300 mb-1">
+                  Display Name
                 </label>
                 <input
                   id="display-name"
                   type="text"
-                  autoComplete="name"
                   value={displayName}
                   onChange={(e) => setDisplayName(e.target.value)}
-                  className="w-full border border-gray-300 rounded-md px-3 py-2 min-h-[44px] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2.5 text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
                   placeholder="Your name"
-                  data-testid="display-name-input"
+                  autoComplete="name"
                 />
               </div>
             )}
 
             <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
+              <label htmlFor="email" className="block text-sm font-medium text-gray-300 mb-1">
                 Email
               </label>
               <input
                 id="email"
                 type="email"
-                autoComplete="email"
-                required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 min-h-[44px] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="you@example.com"
-                data-testid="email-input"
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2.5 text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                placeholder="rider@example.com"
+                autoComplete="email"
+                required
               />
             </div>
 
             <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-700 mb-1"
-              >
+              <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-1">
                 Password
               </label>
               <input
                 id="password"
                 type="password"
-                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full border border-gray-300 rounded-md px-3 py-2 min-h-[44px] text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder={mode === 'register' ? 'Choose a password' : 'Your password'}
-                data-testid="password-input"
+                className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2.5 text-white placeholder-gray-400 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                placeholder="••••••••"
+                autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                required
               />
             </div>
 
+            {error && (
+              <div className="bg-red-900/40 border border-red-700 rounded-lg px-3 py-2 text-sm text-red-300" data-testid="auth-error">
+                {error}
+              </div>
+            )}
+
             <button
               type="submit"
-              disabled={isSubmitting}
-              className="w-full bg-blue-800 text-white py-2 min-h-[44px] rounded-md text-sm font-medium hover:bg-blue-900 disabled:opacity-50 transition-colors"
-              data-testid="auth-submit-btn"
+              disabled={isPending}
+              className="w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-2.5 rounded-lg text-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              data-testid="auth-submit"
             >
-              {isSubmitting
-                ? mode === 'login'
-                  ? 'Signing in...'
-                  : 'Creating account...'
-                : mode === 'login'
-                  ? 'Sign in'
-                  : 'Create account'}
+              {isPending
+                ? (mode === 'login' ? 'Signing in...' : 'Creating account...')
+                : (mode === 'login' ? 'Sign In' : 'Create Account')}
             </button>
           </form>
 
-          <p className="mt-5 text-center text-sm text-gray-500">
-            {mode === 'login' ? "Don't have an account?" : 'Already have an account?'}{' '}
+          <div className="mt-5 text-center">
             <button
               type="button"
               onClick={toggleMode}
-              className="text-blue-800 font-medium hover:underline"
-              data-testid="auth-mode-toggle"
+              className="text-sm text-gray-400 hover:text-orange-400 transition-colors"
+              data-testid="auth-toggle"
             >
-              {mode === 'login' ? 'Register' : 'Sign in'}
+              {mode === 'login'
+                ? "Don't have an account? Sign up"
+                : 'Already have an account? Sign in'}
             </button>
-          </p>
+          </div>
         </div>
       </div>
     </div>

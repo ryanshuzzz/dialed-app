@@ -1,160 +1,41 @@
-import { useEffect } from 'react';
-import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
-import { useUiStore, type NavItem } from '@/stores/uiStore';
+import { Outlet, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
-
-interface NavEntry {
-  item: NavItem;
-  label: string;
-  path: string;
-}
-
-const NAV_ENTRIES: NavEntry[] = [
-  { item: 'garage', label: 'Garage', path: '/' },
-  { item: 'tracks', label: 'Tracks', path: '/tracks' },
-  { item: 'events', label: 'Events', path: '/events' },
-  { item: 'sessions', label: 'Sessions', path: '/sessions/new' },
-  { item: 'progress', label: 'Progress', path: '/progress' },
-  { item: 'admin', label: 'Admin', path: '/admin' },
-  { item: 'settings', label: 'Settings', path: '/settings' },
-];
+import { BottomNav } from './BottomNav';
+import { LogOut } from 'lucide-react';
 
 export function AppLayout() {
-  const isNavVisible = useUiStore((s) => s.isNavVisible);
-  const sidebarOpen = useUiStore((s) => s.sidebarOpen);
-  const toggleSidebar = useUiStore((s) => s.toggleSidebar);
-  const location = useLocation();
-  const navigate = useNavigate();
   const logout = useAuthStore((s) => s.logout);
+  const navigate = useNavigate();
 
-  /** Close mobile drawer on route change (back/forward, bottom nav, etc.). Desktop uses md:translate-x-0 so layout is unchanged. */
-  useEffect(() => {
-    useUiStore.getState().setSidebarOpen(false);
-  }, [location.pathname]);
-
-  function handleLogout() {
+  function handleSignOut() {
     logout();
     navigate('/login', { replace: true });
   }
 
-  const visibleEntries = NAV_ENTRIES.filter((e) => isNavVisible(e.item));
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Mobile header */}
-      <header className="md:hidden flex items-center justify-between p-4 bg-white border-b border-gray-200">
-        <h1 className="text-xl font-bold text-blue-800">Dialed</h1>
-        <button
-          onClick={toggleSidebar}
-          className="p-2 rounded-lg hover:bg-gray-100"
-          aria-label="Toggle menu"
-        >
-          <svg
-            className="w-6 h-6"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+    <div className="min-h-screen bg-[var(--background)]">
+      {/* Sticky header */}
+      <header className="sticky top-0 z-40 border-b border-border-subtle bg-background-surface safe-area-top">
+        <div className="mx-auto flex max-w-[480px] items-center justify-between px-4 py-3">
+          <img src="/dialed_logo_v2.svg" alt="Dialed" className="h-7" />
+          <button
+            onClick={handleSignOut}
+            className="flex h-9 w-9 items-center justify-center rounded-lg text-foreground-muted transition-colors hover:bg-background-elevated hover:text-foreground-secondary"
+            aria-label="Sign out"
+            data-testid="sign-out-btn"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M4 6h16M4 12h16M4 18h16"
-            />
-          </svg>
-        </button>
+            <LogOut className="h-4 w-4" />
+          </button>
+        </div>
       </header>
 
-      <div className="flex">
-        {/* Desktop sidebar */}
-        <aside
-          className={`
-            fixed inset-y-0 left-0 z-30 w-56 bg-white border-r border-gray-200
-            transform transition-transform duration-200 ease-in-out
-            md:relative md:translate-x-0
-            ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-          `}
-        >
-          <div className="hidden md:block p-6">
-            <h1 className="text-2xl font-bold text-blue-800">Dialed</h1>
-          </div>
-          <nav className="mt-4 px-3 space-y-1" data-testid="sidebar-nav">
-            {visibleEntries.map((entry) => {
-              const isActive =
-                entry.path === '/'
-                  ? location.pathname === '/'
-                  : location.pathname.startsWith(entry.path);
-              return (
-                <Link
-                  key={entry.item}
-                  to={entry.path}
-                  onClick={() => useUiStore.getState().setSidebarOpen(false)}
-                  className={`
-                    block px-3 py-2 rounded-lg text-sm font-medium
-                    ${
-                      isActive
-                        ? 'bg-blue-50 text-blue-800'
-                        : 'text-gray-700 hover:bg-gray-100'
-                    }
-                  `}
-                >
-                  {entry.label}
-                </Link>
-              );
-            })}
-          </nav>
+      {/* Main content area */}
+      <main className="mx-auto max-w-[480px] px-4 pb-24 pt-4">
+        <Outlet />
+      </main>
 
-          {/* Logout — pinned to bottom of sidebar */}
-          <div className="absolute bottom-0 left-0 right-0 px-3 py-4 border-t border-gray-200">
-            <button
-              onClick={handleLogout}
-              className="w-full text-left px-3 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-100 hover:text-gray-700"
-              data-testid="sidebar-logout-btn"
-            >
-              Sign Out
-            </button>
-          </div>
-        </aside>
-
-        {/* Overlay for mobile sidebar */}
-        {sidebarOpen && (
-          <div
-            className="fixed inset-0 z-20 bg-black/30 md:hidden"
-            onClick={toggleSidebar}
-          />
-        )}
-
-        {/* Main content — extra bottom padding on mobile for bottom nav */}
-        <main className="flex-1 p-4 md:p-6 min-h-screen pb-20 md:pb-6">
-          <Outlet />
-        </main>
-      </div>
-
-      {/* Mobile bottom tab bar */}
-      <nav
-        className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 flex justify-around py-2"
-        data-testid="bottom-nav"
-      >
-        {visibleEntries.slice(0, 5).map((entry) => {
-          const isActive =
-            entry.path === '/'
-              ? location.pathname === '/'
-              : location.pathname.startsWith(entry.path);
-          return (
-            <Link
-              key={entry.item}
-              to={entry.path}
-              onClick={() => useUiStore.getState().setSidebarOpen(false)}
-              className={`
-                flex flex-col items-center px-2 py-1 text-xs min-w-[44px] min-h-[44px] justify-center
-                ${isActive ? 'text-blue-800' : 'text-gray-500'}
-              `}
-            >
-              {entry.label}
-            </Link>
-          );
-        })}
-      </nav>
+      {/* Bottom navigation */}
+      <BottomNav />
     </div>
   );
 }

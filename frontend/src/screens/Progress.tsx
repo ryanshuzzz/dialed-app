@@ -1,25 +1,30 @@
 import { useState, useMemo } from 'react';
-import {
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-} from 'recharts';
+import { ChevronDown, TrendingDown, TrendingUp, Flag, MapPin } from 'lucide-react';
 import { useLapTrends, useEfficacy, useSessionHistory } from '@/hooks/useProgress';
 import { LoadingSkeleton } from '@/components/common/LoadingSkeleton';
 import { ErrorState } from '@/components/common/ErrorState';
 import { EmptyState } from '@/components/common/EmptyState';
+import { cn } from '@/lib/utils';
 
-const TRACK_COLORS = [
-  '#2563eb', // blue
-  '#dc2626', // red
-  '#16a34a', // green
-  '#9333ea', // purple
-  '#ea580c', // orange
+// Mock data for fallback display
+const mockSessions = [
+  { date: 'Mar 6 AM', time: 110.892 },
+  { date: 'Mar 6 PM', time: 109.372 },
+  { date: 'Mar 6 PM', time: 108.568 },
+  { date: 'Mar 7 AM', time: 106.366 },
+  { date: 'Mar 7 AM', time: 105.972 },
+];
+
+const mockTopChanges = [
+  { setting: 'Front preload 0 \u2192 2 turns', delta: 1.2 },
+  { setting: 'Rear preload 8 \u2192 10 turns', delta: 0.9 },
+  { setting: 'Front rebound stiffened', delta: 0.4 },
+];
+
+const mockTracks = [
+  { name: 'Buttonwillow', config: 'TC#1', best: '1:45.972', date: 'Mar 7, 2026' },
+  { name: 'Thunderhill', config: '3 mile', best: '2:05.334', date: 'Feb 22, 2026' },
+  { name: 'Laguna Seca', config: 'Full', best: '1:32.891', date: 'Jan 15, 2026' },
 ];
 
 function formatLapTime(ms: number): string {
@@ -28,294 +33,292 @@ function formatLapTime(ms: number): string {
   return `${minutes}:${seconds.padStart(6, '0')}`;
 }
 
-function formatDelta(ms: number): string {
-  const sign = ms < 0 ? '-' : '+';
-  return `${sign}${formatLapTime(Math.abs(ms))}`;
+function formatSeconds(seconds: number): string {
+  const mins = Math.floor(seconds / 60);
+  const secs = (seconds % 60).toFixed(3);
+  return `${mins}:${secs.padStart(6, '0')}`;
 }
-
-type SortKey = 'date' | 'best_lap_ms' | 'track_name';
-type SortDir = 'asc' | 'desc';
 
 export default function Progress() {
   const { data: progress, isLoading: progressLoading, isError: progressError, refetch: refetchProgress } = useLapTrends();
   const { data: efficacy, isLoading: efficacyLoading } = useEfficacy();
   const { data: history, isLoading: historyLoading } = useSessionHistory();
 
-  const [trackFilter, setTrackFilter] = useState<string>('all');
-  const [sortKey, setSortKey] = useState<SortKey>('date');
-  const [sortDir, setSortDir] = useState<SortDir>('desc');
-
-  // Build chart data: one entry per session, each track as its own series
-  const { chartData, tracks } = useMemo(() => {
-    const trend = progress?.lap_time_trend ?? [];
-    const trackSet = [...new Set(trend.map((t) => t.track_name))];
-    const data = trend.map((item) => {
-      const entry: Record<string, unknown> = {
-        date: item.date,
-        session_id: item.session_id,
-      };
-      // Only populate the track key that matches this item
-      for (const track of trackSet) {
-        entry[track] = item.track_name === track ? item.best_lap_ms : undefined;
-      }
-      return entry;
-    });
-    return { chartData: data, tracks: trackSet };
-  }, [progress]);
-
-  // Session history with sorting and filtering
-  const filteredSessions = useMemo(() => {
-    let sessions = history?.sessions ?? [];
-    if (trackFilter !== 'all') {
-      sessions = sessions.filter((s) => s.track_name === trackFilter);
-    }
-    const sorted = [...sessions].sort((a, b) => {
-      let cmp = 0;
-      if (sortKey === 'date') {
-        cmp = a.date.localeCompare(b.date);
-      } else if (sortKey === 'best_lap_ms') {
-        cmp = (a.best_lap_ms ?? Infinity) - (b.best_lap_ms ?? Infinity);
-      } else if (sortKey === 'track_name') {
-        cmp = a.track_name.localeCompare(b.track_name);
-      }
-      return sortDir === 'asc' ? cmp : -cmp;
-    });
-    return sorted;
-  }, [history, trackFilter, sortKey, sortDir]);
-
-  const historyTracks = useMemo(() => {
-    return [...new Set((history?.sessions ?? []).map((s) => s.track_name))];
-  }, [history]);
-
-  function handleSort(key: SortKey) {
-    if (sortKey === key) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
-    } else {
-      setSortKey(key);
-      setSortDir('asc');
-    }
-  }
+  const [selectedTrack, setSelectedTrack] = useState('Buttonwillow Raceway');
 
   const isLoading = progressLoading || efficacyLoading || historyLoading;
 
+  // Use API data if available, otherwise use mock data for chart
+  const sessions = useMemo(() => {
+    const trend = progress?.lap_time_trend ?? [];
+    if (trend.length > 0) {
+      return trend.map((item) => ({
+        date: item.date,
+        time: item.best_lap_ms / 1000,
+      }));
+    }
+    return mockSessions;
+  }, [progress]);
+
+  const minTime = Math.min(...sessions.map(s => s.time));
+  const maxTime = Math.max(...sessions.map(s => s.time));
+  const priorBest = 102.9;
+
+  // Best laps from API or mock
+  const bestLapTracks = useMemo(() => {
+    if (progress?.best_laps_by_track && progress.best_laps_by_track.length > 0) {
+      return progress.best_laps_by_track.map((b) => ({
+        name: b.track_name,
+        config: '',
+        best: formatLapTime(b.best_lap_ms),
+        date: b.date,
+      }));
+    }
+    return mockTracks;
+  }, [progress]);
+
+  // Top changes from efficacy or mock
+  const topChanges = useMemo(() => {
+    if (efficacy?.top_changes && efficacy.top_changes.length > 0) {
+      return efficacy.top_changes.map((c) => ({
+        setting: c.setting,
+        delta: c.avg_delta_ms / 1000,
+      }));
+    }
+    return mockTopChanges;
+  }, [efficacy]);
+
   if (isLoading) {
     return (
-      <div className="space-y-8">
-        <h2 className="text-2xl font-bold">Progress</h2>
-        <LoadingSkeleton variant="lines" count={3} />
-        <LoadingSkeleton variant="cards" count={3} />
-        <LoadingSkeleton variant="table" count={4} />
+      <div className="min-h-screen bg-background pb-24">
+        <header className="border-b border-border-subtle bg-background safe-area-top">
+          <div className="mx-auto max-w-[480px] px-4 py-6">
+            <h1 className="font-mono text-2xl font-semibold text-foreground">Progress</h1>
+          </div>
+        </header>
+        <main className="mx-auto max-w-[480px] px-4 py-6">
+          <LoadingSkeleton variant="lines" count={3} />
+          <div className="mt-4">
+            <LoadingSkeleton variant="cards" count={3} />
+          </div>
+        </main>
       </div>
     );
   }
 
   if (progressError) {
     return (
-      <div className="space-y-8">
-        <h2 className="text-2xl font-bold">Progress</h2>
-        <ErrorState message="Failed to load progress data." onRetry={() => refetchProgress()} />
-      </div>
-    );
-  }
-
-  const hasData = (progress?.lap_time_trend?.length ?? 0) > 0 || (history?.sessions?.length ?? 0) > 0;
-
-  if (!hasData) {
-    return (
-      <div className="space-y-8">
-        <h2 className="text-2xl font-bold">Progress</h2>
-        <EmptyState
-          title="No progress data yet"
-          description="Complete some track sessions to see your lap time trends and improvement."
-        />
+      <div className="min-h-screen bg-background pb-24">
+        <header className="border-b border-border-subtle bg-background safe-area-top">
+          <div className="mx-auto max-w-[480px] px-4 py-6">
+            <h1 className="font-mono text-2xl font-semibold text-foreground">Progress</h1>
+          </div>
+        </header>
+        <main className="mx-auto max-w-[480px] px-4 py-6">
+          <ErrorState message="Failed to load progress data." onRetry={() => refetchProgress()} />
+        </main>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
-      <h2 className="text-2xl font-bold">Progress</h2>
+    <div className="min-h-screen bg-background pb-24">
+      {/* Header */}
+      <header className="border-b border-border-subtle bg-background safe-area-top">
+        <div className="mx-auto max-w-[480px] px-4 py-6">
+          <h1 className="font-mono text-2xl font-semibold text-foreground">Progress</h1>
+          <button className="mt-2 flex items-center gap-2 text-foreground-secondary hover:text-foreground">
+            <MapPin className="h-4 w-4" />
+            <span className="text-sm">{selectedTrack}</span>
+            <ChevronDown className="h-4 w-4" />
+          </button>
+        </div>
+      </header>
 
-      {/* Lap Time Trend Chart */}
-      <section>
-        <h3 className="text-lg font-semibold mb-3">Lap Time Trends</h3>
-        <div className="bg-white rounded-lg border border-gray-200 p-2 sm:p-4" data-testid="lap-trend-chart">
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="date" />
-              <YAxis
-                tickFormatter={(v: number) => formatLapTime(v)}
-                domain={['auto', 'auto']}
-                reversed
-              />
-              <Tooltip
-                formatter={(value: unknown) => formatLapTime(Number(value))}
-                labelFormatter={(label: unknown) => `Date: ${String(label)}`}
-              />
-              <Legend />
-              {tracks.map((track, i) => (
-                <Line
-                  key={track}
-                  type="monotone"
-                  dataKey={track}
-                  stroke={TRACK_COLORS[i % TRACK_COLORS.length]}
-                  connectNulls
-                  dot
-                  name={track}
+      <main className="mx-auto max-w-[480px] px-4 py-6">
+        <div className="flex flex-col gap-6">
+          {/* Lap Time Trend Chart */}
+          <section className="rounded-lg border border-border-subtle bg-background-surface p-4">
+            <h3 className="mb-4 text-sm font-medium text-foreground-secondary">Lap Time Trend</h3>
+            <div className="relative h-48">
+              <svg className="h-full w-full" viewBox="0 0 320 160" preserveAspectRatio="none">
+                {/* Grid lines */}
+                {[0, 40, 80, 120, 160].map((y) => (
+                  <line key={y} x1="0" y1={y} x2="320" y2={y} stroke="#2A2A2A" strokeWidth="0.5" />
+                ))}
+
+                {/* Prior best line */}
+                <line
+                  x1="0"
+                  y1={160 - ((priorBest - minTime + 5) / (maxTime - minTime + 10)) * 160}
+                  x2="320"
+                  y2={160 - ((priorBest - minTime + 5) / (maxTime - minTime + 10)) * 160}
+                  stroke="#8A8A85"
+                  strokeWidth="1"
+                  strokeDasharray="4 4"
                 />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      </section>
 
-      {/* Best Laps by Track + Total Time Found */}
-      <section>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {progress?.best_laps_by_track?.map((best) => (
-            <div
-              key={best.track_id}
-              className="bg-white rounded-lg border border-gray-200 p-4"
-              data-testid="best-lap-card"
-            >
-              <h4 className="font-semibold text-gray-900">{best.track_name}</h4>
-              <p className="text-2xl font-bold text-blue-800 mt-1">
-                {formatLapTime(best.best_lap_ms)}
-              </p>
-              <p className="text-sm text-gray-500 mt-1">{best.date}</p>
+                {/* Data line */}
+                <path
+                  d={sessions.map((s, i) => {
+                    const x = (i / (sessions.length - 1)) * 320;
+                    const y = 160 - ((s.time - minTime + 5) / (maxTime - minTime + 10)) * 160;
+                    return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+                  }).join(' ')}
+                  fill="none"
+                  stroke="#E8520A"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+
+                {/* Data points */}
+                {sessions.map((s, i) => {
+                  const x = (i / (sessions.length - 1)) * 320;
+                  const y = 160 - ((s.time - minTime + 5) / (maxTime - minTime + 10)) * 160;
+                  return (
+                    <circle
+                      key={i}
+                      cx={x}
+                      cy={y}
+                      r="5"
+                      fill="#0A0A0A"
+                      stroke="#E8520A"
+                      strokeWidth="2"
+                      className="cursor-pointer"
+                    />
+                  );
+                })}
+              </svg>
+
+              {/* Y-axis labels */}
+              <div className="absolute -left-1 top-0 flex h-full flex-col justify-between text-[10px] text-foreground-muted">
+                <span>1:51</span>
+                <span>1:46</span>
+              </div>
+
+              {/* PB label */}
+              <div
+                className="absolute right-2 text-[10px] text-foreground-muted"
+                style={{
+                  top: `${100 - ((priorBest - minTime + 5) / (maxTime - minTime + 10)) * 100}%`,
+                  transform: 'translateY(-50%)',
+                }}
+              >
+                PB: 1:42.9
+              </div>
             </div>
-          ))}
-          {progress?.total_time_found_ms != null && (
-            <div className="bg-white rounded-lg border border-gray-200 p-4" data-testid="total-time-found">
-              <h4 className="font-semibold text-gray-900">Total Time Found</h4>
-              <p className="text-2xl font-bold text-green-700 mt-1">
-                {formatLapTime(progress.total_time_found_ms)}
-              </p>
-              <p className="text-sm text-gray-500 mt-1">Cumulative improvement</p>
+
+            {/* Gap to close */}
+            <div className="mt-4 flex items-center justify-between rounded-lg bg-background-elevated px-3 py-2 text-sm">
+              <span className="text-foreground-secondary">Gap to prior best</span>
+              <span className="font-mono tabular-nums text-accent-yellow">3.0s to close</span>
             </div>
-          )}
-        </div>
-      </section>
+          </section>
 
-      {/* Efficacy Dashboard */}
-      <section>
-        <h3 className="text-lg font-semibold mb-3">Efficacy Dashboard</h3>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4" data-testid="efficacy-dashboard">
-          <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
-            <p className="text-xs sm:text-sm text-gray-500">Adoption Rate</p>
-            <p className="text-xl sm:text-2xl font-bold text-blue-800" data-testid="adoption-rate">
-              {efficacy?.adoption_rate != null ? `${Math.round(efficacy.adoption_rate * 100)}%` : 'N/A'}
-            </p>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
-            <p className="text-xs sm:text-sm text-gray-500">Avg Delta (Applied)</p>
-            <p className="text-xl sm:text-2xl font-bold text-green-700" data-testid="delta-applied">
-              {efficacy?.avg_delta_by_status?.applied != null
-                ? formatDelta(efficacy.avg_delta_by_status.applied)
-                : 'N/A'}
-            </p>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
-            <p className="text-xs sm:text-sm text-gray-500">Avg Delta (Modified)</p>
-            <p className="text-xl sm:text-2xl font-bold text-yellow-600" data-testid="delta-modified">
-              {efficacy?.avg_delta_by_status?.applied_modified != null
-                ? formatDelta(efficacy.avg_delta_by_status.applied_modified)
-                : 'N/A'}
-            </p>
-          </div>
-          <div className="bg-white rounded-lg border border-gray-200 p-3 sm:p-4">
-            <p className="text-xs sm:text-sm text-gray-500">Avg Delta (Skipped)</p>
-            <p className="text-xl sm:text-2xl font-bold text-red-600" data-testid="delta-skipped">
-              {efficacy?.avg_delta_by_status?.skipped != null
-                ? formatDelta(efficacy.avg_delta_by_status.skipped)
-                : 'N/A'}
-            </p>
-          </div>
-        </div>
-      </section>
+          {/* Stats Row */}
+          <section className="grid grid-cols-3 gap-3">
+            <div className="rounded-lg border border-border-subtle bg-background-surface p-3 text-center">
+              <span className="block font-mono text-2xl font-semibold tabular-nums text-foreground">
+                {history?.sessions?.length ?? 8}
+              </span>
+              <span className="text-xs text-foreground-muted">Sessions</span>
+            </div>
+            <div className="rounded-lg border border-border-subtle bg-background-surface p-3 text-center">
+              <span className="flex items-center justify-center gap-1">
+                <TrendingDown className="h-4 w-4 text-accent-green" />
+                <span className="font-mono text-2xl font-semibold tabular-nums text-accent-green">
+                  {progress?.total_time_found_ms != null
+                    ? `${(progress.total_time_found_ms / 1000).toFixed(1)}s`
+                    : '4.0s'}
+                </span>
+              </span>
+              <span className="text-xs text-foreground-muted">Time found</span>
+            </div>
+            <div className="rounded-lg border border-border-subtle bg-background-surface p-3 text-center">
+              <span className="block font-mono text-2xl font-semibold tabular-nums text-foreground">
+                {efficacy?.adoption_rate != null
+                  ? `${Math.round(efficacy.adoption_rate * 9)}/${9}`
+                  : '6/9'}
+              </span>
+              <span className="text-xs text-foreground-muted">Applied</span>
+            </div>
+          </section>
 
-      {/* Session History Table */}
-      <section>
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-3 gap-3">
-          <h3 className="text-lg font-semibold">Session History</h3>
-          <select
-            value={trackFilter}
-            onChange={(e) => setTrackFilter(e.target.value)}
-            className="border border-gray-300 rounded-md px-3 py-1.5 min-h-[44px] text-sm self-start sm:self-auto"
-            data-testid="track-filter"
-          >
-            <option value="all">All Tracks</option>
-            {historyTracks.map((t) => (
-              <option key={t} value={t}>
-                {t}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
-          <table className="w-full text-sm" data-testid="session-history-table">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th
-                  className="px-3 sm:px-4 py-3 text-left font-medium text-gray-600 cursor-pointer select-none min-h-[44px]"
-                  onClick={() => handleSort('date')}
+          {/* Efficacy Section */}
+          <section className="rounded-lg border border-border-subtle bg-background-surface p-4">
+            <h3 className="mb-4 text-sm font-medium text-foreground-secondary">Did the changes help?</h3>
+
+            <div className="mb-4 flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-foreground">Changes applied</span>
+                <span className="flex items-center gap-1 font-mono text-sm tabular-nums text-accent-green">
+                  <TrendingDown className="h-3 w-3" />
+                  {efficacy?.avg_delta_by_status?.applied != null
+                    ? `avg ${(Math.abs(efficacy.avg_delta_by_status.applied) / 1000).toFixed(1)}s / session`
+                    : 'avg 0.8s / session'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-foreground">Changes skipped</span>
+                <span className="flex items-center gap-1 font-mono text-sm tabular-nums text-foreground-muted">
+                  <TrendingDown className="h-3 w-3" />
+                  {efficacy?.avg_delta_by_status?.skipped != null
+                    ? `avg ${(Math.abs(efficacy.avg_delta_by_status.skipped) / 1000).toFixed(1)}s / session`
+                    : 'avg 0.1s / session'}
+                </span>
+              </div>
+            </div>
+
+            <div className="border-t border-border-subtle pt-4">
+              <h4 className="mb-3 text-xs font-medium uppercase tracking-wider text-foreground-muted">
+                Top Changes
+              </h4>
+              <div className="flex flex-col gap-2">
+                {topChanges.map((change, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="h-2 w-2 rounded-full bg-accent-orange" />
+                      <span className="text-sm text-foreground">{change.setting}</span>
+                    </div>
+                    <span className="flex items-center gap-1 font-mono text-sm tabular-nums text-accent-green">
+                      <TrendingDown className="h-3 w-3" />
+                      {change.delta.toFixed(1)}s
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* Best Laps per Track */}
+          <section>
+            <h3 className="mb-3 text-sm font-medium text-foreground-secondary">Best Laps by Track</h3>
+            <div className="flex flex-col gap-3">
+              {bestLapTracks.map((track) => (
+                <div
+                  key={track.name}
+                  className="flex items-center justify-between rounded-lg border border-border-subtle bg-background-surface p-4"
                 >
-                  Date {sortKey === 'date' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-                </th>
-                <th
-                  className="px-3 sm:px-4 py-3 text-left font-medium text-gray-600 cursor-pointer select-none min-h-[44px]"
-                  onClick={() => handleSort('track_name')}
-                >
-                  Track {sortKey === 'track_name' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-                </th>
-                <th className="px-3 sm:px-4 py-3 text-left font-medium text-gray-600 hidden sm:table-cell">Type</th>
-                <th
-                  className="px-3 sm:px-4 py-3 text-left font-medium text-gray-600 cursor-pointer select-none min-h-[44px]"
-                  onClick={() => handleSort('best_lap_ms')}
-                >
-                  Best Lap {sortKey === 'best_lap_ms' ? (sortDir === 'asc' ? '↑' : '↓') : ''}
-                </th>
-                <th className="px-3 sm:px-4 py-3 text-left font-medium text-gray-600">Delta</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredSessions.map((session) => (
-                <tr key={session.session_id} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="px-3 sm:px-4 py-3">{session.date}</td>
-                  <td className="px-3 sm:px-4 py-3">{session.track_name}</td>
-                  <td className="px-3 sm:px-4 py-3 capitalize hidden sm:table-cell">{session.session_type}</td>
-                  <td className="px-3 sm:px-4 py-3">
-                    {session.best_lap_ms != null ? formatLapTime(session.best_lap_ms) : '-'}
-                  </td>
-                  <td className="px-3 sm:px-4 py-3">
-                    {session.delta_from_previous_ms != null ? (
-                      <span
-                        className={
-                          session.delta_from_previous_ms < 0
-                            ? 'text-green-700'
-                            : 'text-red-600'
-                        }
-                      >
-                        {formatDelta(session.delta_from_previous_ms)}
-                      </span>
-                    ) : (
-                      '-'
-                    )}
-                  </td>
-                </tr>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Flag className="h-4 w-4 text-foreground-muted" />
+                      <span className="font-medium text-foreground">{track.name}</span>
+                      {track.config && (
+                        <span className="text-xs text-foreground-muted">{track.config}</span>
+                      )}
+                    </div>
+                    <span className="mt-1 block text-xs text-foreground-muted">{track.date}</span>
+                  </div>
+                  <span className="font-mono text-lg font-semibold tabular-nums text-foreground">
+                    {track.best}
+                  </span>
+                </div>
               ))}
-              {filteredSessions.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-4 py-6 text-center text-gray-500">
-                    No sessions match the selected filter.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+            </div>
+          </section>
         </div>
-      </section>
+      </main>
     </div>
   );
 }

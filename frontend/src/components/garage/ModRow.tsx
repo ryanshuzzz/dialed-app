@@ -3,8 +3,7 @@ import type { Modification } from '@/api/types';
 const CATEGORY_COLORS: Record<string, string> = {
   exhaust: 'bg-orange-100 text-orange-800',
   suspension: 'bg-purple-100 text-purple-800',
-  bodywork: 'bg-blue-100 text-blue-800',
-  cosmetics: 'bg-fuchsia-100 text-fuchsia-800',
+  bodywork: 'bg-blue-100 text-accent-orange',
   controls: 'bg-green-100 text-green-800',
   electronics: 'bg-yellow-100 text-yellow-800',
   engine: 'bg-red-100 text-red-800',
@@ -38,7 +37,7 @@ export function ModRow({ mod }: ModRowProps) {
 
   return (
     <div
-      className={`bg-white rounded-lg border border-gray-200 p-4 ${isRemoved ? 'opacity-70' : ''}`}
+      className={`bg-background-surface rounded-lg border border-border-subtle p-4 ${isRemoved ? 'opacity-70' : ''}`}
       data-testid="mod-row"
     >
       <div className="flex items-start justify-between gap-3">
@@ -50,15 +49,15 @@ export function ModRow({ mod }: ModRowProps) {
             >
               {formatCategory(mod.category)}
             </span>
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-foreground-muted">
               {formatAction(mod.action)}
             </span>
           </div>
-          <p className="text-sm font-medium text-gray-900">{mod.part_name}</p>
+          <p className="text-sm font-medium text-foreground">{mod.part_name}</p>
           {mod.brand && (
-            <p className="text-xs text-gray-500">{mod.brand}</p>
+            <p className="text-xs text-foreground-muted">{mod.brand}</p>
           )}
-          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs text-gray-500">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs text-foreground-muted">
             <span>
               Installed: {new Date(mod.installed_at).toLocaleDateString()}
             </span>
@@ -74,7 +73,7 @@ export function ModRow({ mod }: ModRowProps) {
             )}
           </div>
           {mod.notes && (
-            <p className="text-xs text-gray-400 mt-1">{mod.notes}</p>
+            <p className="text-xs text-foreground-muted mt-1">{mod.notes}</p>
           )}
         </div>
       </div>

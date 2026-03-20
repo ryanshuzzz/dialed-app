@@ -113,7 +113,7 @@ export default function Admin() {
       {/* Add Form */}
       <form
         onSubmit={handleAdd}
-        className="bg-white rounded-lg border border-gray-200 p-4 flex flex-col sm:flex-row gap-2"
+        className="bg-background-surface rounded-lg border border-border-subtle p-4 flex flex-col sm:flex-row gap-2"
         data-testid="add-alias-form"
       >
         <input
@@ -121,7 +121,7 @@ export default function Admin() {
           placeholder="Raw name"
           value={newRawName}
           onChange={(e) => setNewRawName(e.target.value)}
-          className="border border-gray-300 rounded-md px-3 py-2 min-h-[44px] text-sm flex-1"
+          className="border border-border rounded-md px-3 py-2 min-h-[44px] text-sm flex-1"
           data-testid="new-raw-name"
         />
         <input
@@ -129,7 +129,7 @@ export default function Admin() {
           placeholder="Canonical name"
           value={newCanonicalName}
           onChange={(e) => setNewCanonicalName(e.target.value)}
-          className="border border-gray-300 rounded-md px-3 py-2 min-h-[44px] text-sm flex-1"
+          className="border border-border rounded-md px-3 py-2 min-h-[44px] text-sm flex-1"
           data-testid="new-canonical-name"
         />
         <input
@@ -137,13 +137,13 @@ export default function Admin() {
           placeholder="Logger model (optional)"
           value={newLoggerModel}
           onChange={(e) => setNewLoggerModel(e.target.value)}
-          className="border border-gray-300 rounded-md px-3 py-2 min-h-[44px] text-sm flex-1"
+          className="border border-border rounded-md px-3 py-2 min-h-[44px] text-sm flex-1"
           data-testid="new-logger-model"
         />
         <button
           type="submit"
           disabled={createAlias.isPending || !newRawName.trim() || !newCanonicalName.trim()}
-          className="bg-blue-600 text-white px-4 py-2 min-h-[44px] rounded-md text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+          className="bg-accent-orange text-white px-4 py-2 min-h-[44px] rounded-md text-sm font-medium hover:bg-accent-orange-hover disabled:opacity-50"
           data-testid="add-alias-btn"
         >
           Add
@@ -152,19 +152,19 @@ export default function Admin() {
 
       {/* Alias Table */}
       {aliases && aliases.length > 0 ? (
-        <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
+        <div className="bg-background-surface rounded-lg border border-border-subtle overflow-x-auto">
           <table className="w-full text-sm" data-testid="alias-table">
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-3 sm:px-4 py-3 text-left font-medium text-gray-600">Raw Name</th>
-                <th className="px-3 sm:px-4 py-3 text-left font-medium text-gray-600">Canonical Name</th>
-                <th className="px-3 sm:px-4 py-3 text-left font-medium text-gray-600 hidden sm:table-cell">Logger Model</th>
-                <th className="px-3 sm:px-4 py-3 text-left font-medium text-gray-600">Actions</th>
+              <tr className="border-b border-border-subtle bg-background-elevated">
+                <th className="px-3 sm:px-4 py-3 text-left font-medium text-foreground-secondary">Raw Name</th>
+                <th className="px-3 sm:px-4 py-3 text-left font-medium text-foreground-secondary">Canonical Name</th>
+                <th className="px-3 sm:px-4 py-3 text-left font-medium text-foreground-secondary hidden sm:table-cell">Logger Model</th>
+                <th className="px-3 sm:px-4 py-3 text-left font-medium text-foreground-secondary">Actions</th>
               </tr>
             </thead>
             <tbody>
               {aliases.map((alias) => (
-                <tr key={alias.id} className="border-b border-gray-100 hover:bg-gray-50">
+                <tr key={alias.id} className="border-b border-border-subtle hover:bg-background-elevated">
                   {editingId === alias.id ? (
                     <>
                       <td className="px-3 sm:px-4 py-2">
@@ -172,7 +172,7 @@ export default function Admin() {
                           type="text"
                           value={editState.raw_name}
                           onChange={(e) => setEditState((s) => ({ ...s, raw_name: e.target.value }))}
-                          className="border border-gray-300 rounded px-2 py-1 min-h-[44px] text-sm w-full"
+                          className="border border-border rounded px-2 py-1 min-h-[44px] text-sm w-full"
                           data-testid="edit-raw-name"
                         />
                       </td>
@@ -181,7 +181,7 @@ export default function Admin() {
                           type="text"
                           value={editState.canonical_name}
                           onChange={(e) => setEditState((s) => ({ ...s, canonical_name: e.target.value }))}
-                          className="border border-gray-300 rounded px-2 py-1 min-h-[44px] text-sm w-full"
+                          className="border border-border rounded px-2 py-1 min-h-[44px] text-sm w-full"
                           data-testid="edit-canonical-name"
                         />
                       </td>
@@ -190,7 +190,7 @@ export default function Admin() {
                           type="text"
                           value={editState.logger_model}
                           onChange={(e) => setEditState((s) => ({ ...s, logger_model: e.target.value }))}
-                          className="border border-gray-300 rounded px-2 py-1 min-h-[44px] text-sm w-full"
+                          className="border border-border rounded px-2 py-1 min-h-[44px] text-sm w-full"
                           data-testid="edit-logger-model"
                         />
                       </td>
@@ -198,14 +198,14 @@ export default function Admin() {
                         <div className="flex gap-2">
                           <button
                             onClick={handleSaveEdit}
-                            className="text-blue-600 text-sm font-medium hover:underline min-h-[44px] flex items-center"
+                            className="text-accent-orange text-sm font-medium hover:underline min-h-[44px] flex items-center"
                             data-testid="save-edit-btn"
                           >
                             Save
                           </button>
                           <button
                             onClick={() => setEditingId(null)}
-                            className="text-gray-500 text-sm hover:underline min-h-[44px] flex items-center"
+                            className="text-foreground-muted text-sm hover:underline min-h-[44px] flex items-center"
                             data-testid="cancel-edit-btn"
                           >
                             Cancel
@@ -217,12 +217,12 @@ export default function Admin() {
                     <>
                       <td className="px-3 sm:px-4 py-3">{alias.raw_name}</td>
                       <td className="px-3 sm:px-4 py-3">{alias.canonical_name}</td>
-                      <td className="px-3 sm:px-4 py-3 text-gray-500 hidden sm:table-cell">{alias.logger_model ?? '-'}</td>
+                      <td className="px-3 sm:px-4 py-3 text-foreground-muted hidden sm:table-cell">{alias.logger_model ?? '-'}</td>
                       <td className="px-3 sm:px-4 py-3">
                         <div className="flex gap-2">
                           <button
                             onClick={() => startEdit(alias)}
-                            className="text-blue-600 text-sm hover:underline min-h-[44px] flex items-center"
+                            className="text-accent-orange text-sm hover:underline min-h-[44px] flex items-center"
                             data-testid={`edit-${alias.id}`}
                           >
                             Edit
@@ -238,7 +238,7 @@ export default function Admin() {
                               </button>
                               <button
                                 onClick={() => setDeleteConfirmId(null)}
-                                className="text-gray-500 text-sm hover:underline min-h-[44px] flex items-center"
+                                className="text-foreground-muted text-sm hover:underline min-h-[44px] flex items-center"
                               >
                                 Cancel
                               </button>
