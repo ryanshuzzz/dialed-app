@@ -68,11 +68,11 @@ export function OwnershipTab({ bikeId }: OwnershipTabProps) {
     <div>
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold text-gray-900">Ownership History</h3>
+        <h3 className="text-lg font-semibold text-foreground">Ownership History</h3>
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+            className="px-4 py-2 text-sm font-medium text-white bg-accent-orange rounded-lg hover:bg-accent-orange-hover transition-colors"
             data-testid="add-ownership-button"
           >
             Add Event
@@ -84,20 +84,20 @@ export function OwnershipTab({ bikeId }: OwnershipTabProps) {
       {showForm && (
         <form
           onSubmit={handleSubmit}
-          className="bg-white rounded-lg border border-gray-200 p-4 mb-4 space-y-4"
+          className="bg-background-surface rounded-lg border border-border-subtle p-4 mb-4 space-y-4"
           data-testid="ownership-form"
         >
-          <h4 className="text-sm font-semibold text-gray-900">Add Ownership Event</h4>
+          <h4 className="text-sm font-semibold text-foreground">Add Ownership Event</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
-              <label htmlFor="own-event-type" className="block text-xs font-medium text-gray-700 mb-1">
+              <label htmlFor="own-event-type" className="block text-xs font-medium text-foreground-secondary mb-1">
                 Event Type
               </label>
               <select
                 id="own-event-type"
                 value={eventType}
                 onChange={(e) => setEventType(e.target.value as OwnershipHistory['event_type'])}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-border rounded-lg text-sm"
               >
                 {EVENT_TYPE_OPTIONS.map((type) => (
                   <option key={type} value={type}>
@@ -107,7 +107,7 @@ export function OwnershipTab({ bikeId }: OwnershipTabProps) {
               </select>
             </div>
             <div>
-              <label htmlFor="own-date" className="block text-xs font-medium text-gray-700 mb-1">
+              <label htmlFor="own-date" className="block text-xs font-medium text-foreground-secondary mb-1">
                 Date
               </label>
               <input
@@ -115,12 +115,12 @@ export function OwnershipTab({ bikeId }: OwnershipTabProps) {
                 type="date"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-border rounded-lg text-sm"
                 required
               />
             </div>
             <div>
-              <label htmlFor="own-price" className="block text-xs font-medium text-gray-700 mb-1">
+              <label htmlFor="own-price" className="block text-xs font-medium text-foreground-secondary mb-1">
                 Price
               </label>
               <input
@@ -129,11 +129,11 @@ export function OwnershipTab({ bikeId }: OwnershipTabProps) {
                 step="0.01"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-border rounded-lg text-sm"
               />
             </div>
             <div>
-              <label htmlFor="own-mileage" className="block text-xs font-medium text-gray-700 mb-1">
+              <label htmlFor="own-mileage" className="block text-xs font-medium text-foreground-secondary mb-1">
                 Mileage (km)
               </label>
               <input
@@ -141,11 +141,11 @@ export function OwnershipTab({ bikeId }: OwnershipTabProps) {
                 type="number"
                 value={mileageKm}
                 onChange={(e) => setMileageKm(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-border rounded-lg text-sm"
               />
             </div>
             <div>
-              <label htmlFor="own-counterparty" className="block text-xs font-medium text-gray-700 mb-1">
+              <label htmlFor="own-counterparty" className="block text-xs font-medium text-foreground-secondary mb-1">
                 Counterparty
               </label>
               <input
@@ -154,11 +154,11 @@ export function OwnershipTab({ bikeId }: OwnershipTabProps) {
                 value={counterparty}
                 onChange={(e) => setCounterparty(e.target.value)}
                 placeholder="e.g. Dealer name"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-border rounded-lg text-sm"
               />
             </div>
             <div>
-              <label htmlFor="own-notes" className="block text-xs font-medium text-gray-700 mb-1">
+              <label htmlFor="own-notes" className="block text-xs font-medium text-foreground-secondary mb-1">
                 Notes
               </label>
               <input
@@ -167,7 +167,7 @@ export function OwnershipTab({ bikeId }: OwnershipTabProps) {
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Optional notes"
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                className="w-full px-3 py-2 border border-border rounded-lg text-sm"
               />
             </div>
           </div>
@@ -175,14 +175,14 @@ export function OwnershipTab({ bikeId }: OwnershipTabProps) {
             <button
               type="button"
               onClick={() => setShowForm(false)}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-foreground-secondary bg-background-elevated rounded-lg hover:bg-border-subtle transition-colors"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={createEvent.isPending}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-white bg-accent-orange rounded-lg hover:bg-accent-orange-hover disabled:opacity-50 transition-colors"
               data-testid="submit-ownership"
             >
               {createEvent.isPending ? 'Saving...' : 'Add Event'}
@@ -193,10 +193,10 @@ export function OwnershipTab({ bikeId }: OwnershipTabProps) {
 
       {/* Events timeline */}
       {isLoading ? (
-        <p className="text-gray-500 text-sm">Loading ownership history...</p>
+        <p className="text-foreground-muted text-sm">Loading ownership history...</p>
       ) : sortedEvents.length === 0 ? (
         <div className="text-center py-8">
-          <p className="text-gray-500 text-sm">No ownership events yet.</p>
+          <p className="text-foreground-muted text-sm">No ownership events yet.</p>
         </div>
       ) : (
         <div className="space-y-3" data-testid="ownership-list">

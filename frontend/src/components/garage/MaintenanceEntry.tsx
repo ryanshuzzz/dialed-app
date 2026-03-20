@@ -2,8 +2,8 @@ import type { MaintenanceLog } from '@/api/types';
 
 const CATEGORY_COLORS: Record<string, string> = {
   oil_change: 'bg-amber-100 text-amber-800',
-  coolant: 'bg-blue-100 text-blue-800',
-  chain: 'bg-gray-100 text-gray-800',
+  coolant: 'bg-blue-100 text-accent-orange',
+  chain: 'bg-background-elevated text-foreground',
   brakes: 'bg-red-100 text-red-800',
   tires: 'bg-green-100 text-green-800',
   valve_check: 'bg-purple-100 text-purple-800',
@@ -28,7 +28,7 @@ export function MaintenanceEntry({ entry }: MaintenanceEntryProps) {
 
   return (
     <div
-      className="bg-white rounded-lg border border-gray-200 p-4"
+      className="bg-background-surface rounded-lg border border-border-subtle p-4"
       data-testid="maintenance-entry"
     >
       <div className="flex items-start justify-between gap-3">
@@ -40,14 +40,14 @@ export function MaintenanceEntry({ entry }: MaintenanceEntryProps) {
             >
               {formatCategory(entry.category)}
             </span>
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-foreground-muted">
               {new Date(entry.performed_at).toLocaleDateString()}
             </span>
           </div>
           {entry.description && (
-            <p className="text-sm text-gray-900 mb-1">{entry.description}</p>
+            <p className="text-sm text-foreground mb-1">{entry.description}</p>
           )}
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-foreground-muted">
             {entry.mileage_km != null && (
               <span>{entry.mileage_km.toLocaleString()} km</span>
             )}
@@ -60,7 +60,7 @@ export function MaintenanceEntry({ entry }: MaintenanceEntryProps) {
             {entry.performed_by && <span>by {entry.performed_by}</span>}
           </div>
           {entry.notes && (
-            <p className="text-xs text-gray-400 mt-1">{entry.notes}</p>
+            <p className="text-xs text-foreground-muted mt-1">{entry.notes}</p>
           )}
         </div>
       </div>

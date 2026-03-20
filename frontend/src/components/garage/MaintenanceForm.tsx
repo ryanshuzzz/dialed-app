@@ -57,21 +57,21 @@ export function MaintenanceForm({ onSubmit, onCancel, isPending }: MaintenanceFo
   return (
     <form
       onSubmit={handleSubmit}
-      className="bg-white rounded-lg border border-gray-200 p-4 space-y-4"
+      className="bg-background-surface rounded-lg border border-border-subtle p-4 space-y-4"
       data-testid="maintenance-form"
     >
-      <h3 className="text-sm font-semibold text-gray-900">Add Maintenance</h3>
+      <h3 className="text-sm font-semibold text-foreground">Add Maintenance</h3>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label htmlFor="maint-category" className="block text-xs font-medium text-gray-700 mb-1">
+          <label htmlFor="maint-category" className="block text-xs font-medium text-foreground-secondary mb-1">
             Category
           </label>
           <select
             id="maint-category"
             value={category}
             onChange={(e) => setCategory(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="w-full px-3 py-2 border border-border rounded-lg text-sm"
             data-testid="category-select"
           >
             {CATEGORIES.map((cat) => (
@@ -83,7 +83,7 @@ export function MaintenanceForm({ onSubmit, onCancel, isPending }: MaintenanceFo
         </div>
 
         <div>
-          <label htmlFor="maint-date" className="block text-xs font-medium text-gray-700 mb-1">
+          <label htmlFor="maint-date" className="block text-xs font-medium text-foreground-secondary mb-1">
             Date
           </label>
           <input
@@ -91,13 +91,13 @@ export function MaintenanceForm({ onSubmit, onCancel, isPending }: MaintenanceFo
             type="date"
             value={performedAt}
             onChange={(e) => setPerformedAt(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="w-full px-3 py-2 border border-border rounded-lg text-sm"
             required
           />
         </div>
 
         <div className="sm:col-span-2">
-          <label htmlFor="maint-description" className="block text-xs font-medium text-gray-700 mb-1">
+          <label htmlFor="maint-description" className="block text-xs font-medium text-foreground-secondary mb-1">
             Description
           </label>
           <input
@@ -106,12 +106,12 @@ export function MaintenanceForm({ onSubmit, onCancel, isPending }: MaintenanceFo
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="What was done?"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="w-full px-3 py-2 border border-border rounded-lg text-sm"
           />
         </div>
 
         <div>
-          <label htmlFor="maint-mileage" className="block text-xs font-medium text-gray-700 mb-1">
+          <label htmlFor="maint-mileage" className="block text-xs font-medium text-foreground-secondary mb-1">
             Mileage (km)
           </label>
           <input
@@ -119,12 +119,12 @@ export function MaintenanceForm({ onSubmit, onCancel, isPending }: MaintenanceFo
             type="number"
             value={mileageKm}
             onChange={(e) => setMileageKm(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="w-full px-3 py-2 border border-border rounded-lg text-sm"
           />
         </div>
 
         <div>
-          <label htmlFor="maint-cost" className="block text-xs font-medium text-gray-700 mb-1">
+          <label htmlFor="maint-cost" className="block text-xs font-medium text-foreground-secondary mb-1">
             Cost
           </label>
           <input
@@ -133,12 +133,12 @@ export function MaintenanceForm({ onSubmit, onCancel, isPending }: MaintenanceFo
             step="0.01"
             value={cost}
             onChange={(e) => setCost(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="w-full px-3 py-2 border border-border rounded-lg text-sm"
           />
         </div>
 
         <div>
-          <label htmlFor="maint-performed-by" className="block text-xs font-medium text-gray-700 mb-1">
+          <label htmlFor="maint-performed-by" className="block text-xs font-medium text-foreground-secondary mb-1">
             Performed By
           </label>
           <input
@@ -147,12 +147,12 @@ export function MaintenanceForm({ onSubmit, onCancel, isPending }: MaintenanceFo
             value={performedBy}
             onChange={(e) => setPerformedBy(e.target.value)}
             placeholder="Self, dealer, etc."
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="w-full px-3 py-2 border border-border rounded-lg text-sm"
           />
         </div>
 
         <div>
-          <label htmlFor="maint-next-due-km" className="block text-xs font-medium text-gray-700 mb-1">
+          <label htmlFor="maint-next-due-km" className="block text-xs font-medium text-foreground-secondary mb-1">
             Next Due (km)
           </label>
           <input
@@ -160,12 +160,12 @@ export function MaintenanceForm({ onSubmit, onCancel, isPending }: MaintenanceFo
             type="number"
             value={nextDueKm}
             onChange={(e) => setNextDueKm(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="w-full px-3 py-2 border border-border rounded-lg text-sm"
           />
         </div>
 
         <div>
-          <label htmlFor="maint-next-due-date" className="block text-xs font-medium text-gray-700 mb-1">
+          <label htmlFor="maint-next-due-date" className="block text-xs font-medium text-foreground-secondary mb-1">
             Next Due Date
           </label>
           <input
@@ -173,12 +173,12 @@ export function MaintenanceForm({ onSubmit, onCancel, isPending }: MaintenanceFo
             type="date"
             value={nextDueDate}
             onChange={(e) => setNextDueDate(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="w-full px-3 py-2 border border-border rounded-lg text-sm"
           />
         </div>
 
         <div className="sm:col-span-2">
-          <label htmlFor="maint-notes" className="block text-xs font-medium text-gray-700 mb-1">
+          <label htmlFor="maint-notes" className="block text-xs font-medium text-foreground-secondary mb-1">
             Notes
           </label>
           <textarea
@@ -186,7 +186,7 @@ export function MaintenanceForm({ onSubmit, onCancel, isPending }: MaintenanceFo
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            className="w-full px-3 py-2 border border-border rounded-lg text-sm"
           />
         </div>
       </div>
@@ -195,14 +195,14 @@ export function MaintenanceForm({ onSubmit, onCancel, isPending }: MaintenanceFo
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+          className="px-4 py-2 text-sm font-medium text-foreground-secondary bg-background-elevated rounded-lg hover:bg-border-subtle transition-colors"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={isPending}
-          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          className="px-4 py-2 text-sm font-medium text-white bg-accent-orange rounded-lg hover:bg-accent-orange-hover disabled:opacity-50 transition-colors"
           data-testid="submit-maintenance"
         >
           {isPending ? 'Saving...' : 'Add Entry'}

@@ -39,19 +39,19 @@ export function UpcomingMaintenance({ items }: UpcomingMaintenanceProps) {
               className={`flex items-center justify-between p-2 rounded ${
                 isDueSoon || isMileageDue
                   ? 'bg-red-50 border border-red-200'
-                  : 'bg-white border border-amber-100'
+                  : 'bg-background-surface border border-amber-100'
               }`}
               data-testid="upcoming-item"
             >
               <div>
-                <span className="text-sm font-medium text-gray-900">
+                <span className="text-sm font-medium text-foreground">
                   {formatCategory(item.category)}
                 </span>
-                <span className="text-xs text-gray-500 ml-2">
+                <span className="text-xs text-foreground-muted ml-2">
                   Last: {new Date(item.performed_at).toLocaleDateString()}
                 </span>
               </div>
-              <div className="text-right text-xs text-gray-600">
+              <div className="text-right text-xs text-foreground-secondary">
                 {item.next_due_date && (
                   <div>
                     Due:{' '}

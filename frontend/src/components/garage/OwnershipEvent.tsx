@@ -3,7 +3,7 @@ import type { OwnershipHistory } from '@/api/types';
 const EVENT_TYPE_COLORS: Record<string, string> = {
   purchased: 'bg-green-100 text-green-800',
   sold: 'bg-red-100 text-red-800',
-  traded: 'bg-blue-100 text-blue-800',
+  traded: 'bg-blue-100 text-accent-orange',
   gifted: 'bg-purple-100 text-purple-800',
   transferred: 'bg-yellow-100 text-yellow-800',
 };
@@ -21,13 +21,13 @@ export function OwnershipEvent({ event }: OwnershipEventProps) {
 
   return (
     <div
-      className="bg-white rounded-lg border border-gray-200 p-4"
+      className="bg-background-surface rounded-lg border border-border-subtle p-4"
       data-testid="ownership-event"
     >
       <div className="flex items-start gap-3">
         {/* Timeline dot */}
         <div className="flex-shrink-0 mt-1">
-          <div className="w-3 h-3 rounded-full bg-blue-500 border-2 border-white ring-2 ring-blue-200" />
+          <div className="w-3 h-3 rounded-full bg-accent-orange border-2 border-white ring-2 ring-accent-orange/30" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -37,11 +37,11 @@ export function OwnershipEvent({ event }: OwnershipEventProps) {
             >
               {formatEventType(event.event_type)}
             </span>
-            <span className="text-xs text-gray-500">
+            <span className="text-xs text-foreground-muted">
               {new Date(event.date).toLocaleDateString()}
             </span>
           </div>
-          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500">
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-foreground-muted">
             {event.price != null && (
               <span data-testid="event-price">
                 {event.currency ?? '$'}{event.price.toLocaleString()}
@@ -55,7 +55,7 @@ export function OwnershipEvent({ event }: OwnershipEventProps) {
             )}
           </div>
           {event.notes && (
-            <p className="text-xs text-gray-400 mt-1">{event.notes}</p>
+            <p className="text-xs text-foreground-muted mt-1">{event.notes}</p>
           )}
         </div>
       </div>

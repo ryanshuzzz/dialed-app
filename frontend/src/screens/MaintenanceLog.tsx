@@ -67,11 +67,11 @@ export default function MaintenanceLogScreen({ bikeId: bikeIdProp }: Maintenance
       {/* Header with filter and add button */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 gap-3">
         <div className="flex items-center gap-3 flex-wrap">
-          <h3 className="text-lg font-semibold text-gray-900">Maintenance Log</h3>
+          <h3 className="text-lg font-semibold text-foreground">Maintenance Log</h3>
           <select
             value={categoryFilter}
             onChange={(e) => setCategoryFilter(e.target.value)}
-            className="px-3 py-1.5 min-h-[44px] border border-gray-300 rounded-lg text-sm"
+            className="px-3 py-1.5 min-h-[44px] border border-border rounded-lg text-sm"
             data-testid="category-filter"
           >
             {FILTER_CATEGORIES.map((cat) => (
@@ -84,7 +84,7 @@ export default function MaintenanceLogScreen({ bikeId: bikeIdProp }: Maintenance
         {!showForm && (
           <button
             onClick={() => setShowForm(true)}
-            className="px-4 py-2 min-h-[44px] text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors self-start sm:self-auto"
+            className="px-4 py-2 min-h-[44px] text-sm font-medium text-white bg-accent-orange rounded-lg hover:bg-accent-orange-hover transition-colors self-start sm:self-auto"
             data-testid="add-maintenance-button"
           >
             Add Maintenance
