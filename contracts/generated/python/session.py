@@ -33,6 +33,10 @@ class TireSnapshot(BaseModel):
     laps: int | None = Field(
         None, description="Number of laps on this tire at the start of the session"
     )
+    pressure_kpa: float | None = Field(
+        None,
+        description="Cold (or reference) tire pressure in kilopascals at session start. Detailed histories remain on tire-pressure logs.",
+    )
 
 
 class SessionType(Enum):
@@ -40,6 +44,29 @@ class SessionType(Enum):
     QUALIFYING = "qualifying"
     RACE = "race"
     TRACKDAY = "trackday"
+    ROAD = "road"
+    COMMUTE = "commute"
+    TOUR = "tour"
+
+
+class RideMetrics(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    distance_km: float | None = Field(
+        None, description="Distance covered during the session"
+    )
+    duration_ms: int | None = Field(
+        None, description="Elapsed riding time in milliseconds"
+    )
+    fuel_used_l: float | None = Field(
+        None, description="Fuel consumed in litres over the session"
+    )
+    odometer_km: int | None = Field(
+        None,
+        description="Odometer reading the rider associates with this session (start or end; document convention in client)",
+    )
+    fuel_efficiency_l_per_100km: float | None = Field(
+        None, description="Derived or entered efficiency for this session"
+    )
 
 
 class Session(BaseModel):
@@ -55,7 +82,7 @@ class Session(BaseModel):
     )
     session_type: SessionType = Field(
         ...,
-        description="The type of session. Affects how lap times are compared and displayed.",
+        description="Track types vs road types; must match parent event venue.",
     )
     manual_best_lap_ms: int | None = Field(
         None,
@@ -78,6 +105,10 @@ class Session(BaseModel):
     voice_note_url: AnyUrl | None = Field(
         None,
         description="URL of an audio voice note in blob storage. Transcribed by the voice ingestion pipeline.",
+    )
+    ride_metrics: RideMetrics | None = Field(
+        None,
+        description="Distance, duration, fuel, odometer snapshot for road-oriented sessions",
     )
     created_at: datetime = Field(
         ..., description="Timestamp when this session was created"

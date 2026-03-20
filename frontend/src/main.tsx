@@ -17,8 +17,12 @@ async function bootstrap() {
     }
   }
 
-  // Register service worker for PWA
-  if ('serviceWorker' in navigator && import.meta.env.PROD) {
+  // Register service worker for PWA (skip in e2e preview builds so MSW stays in control)
+  if (
+    'serviceWorker' in navigator &&
+    import.meta.env.PROD &&
+    import.meta.env.VITE_SKIP_PWA_SW !== 'true'
+  ) {
     window.addEventListener('load', () => {
       navigator.serviceWorker
         .register('/sw.js')

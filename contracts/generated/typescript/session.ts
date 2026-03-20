@@ -1,4 +1,4 @@
-/* Auto-generated from contracts/json-schema/session.schema.json - DO NOT EDIT */
+/* Auto-generated from contracts/json-schema/session.schema.json — DO NOT EDIT */
 
 /**
  * A UUID v4 identifier
@@ -16,7 +16,7 @@ export type Uuid = string;
 export type DateTime = string;
 
 /**
- * Track session, setup snapshots, and change log data shapes for the Dialed platform
+ * Session (track or road), setup snapshots, and change log data shapes. Sessions always belong to an event (track day or road outing).
  */
 export interface SessionSchemas {
   [k: string]: unknown;
@@ -40,9 +40,41 @@ export interface TireSnapshot {
    * Number of laps on this tire at the start of the session
    */
   laps?: number | null;
+  /**
+   * Cold (or reference) tire pressure in kilopascals at session start. Detailed histories remain on tire-pressure logs.
+   */
+  pressure_kpa?: number | null;
 }
 /**
- * A single on-track session within a track event. A session has a type (practice, qualifying, etc.) and captures lap times from two sources: manual rider entry and CSV logger data.
+ * Optional ride outcomes for analytics (especially road). Track sessions often leave laps populated instead.
+ *
+ * This interface was referenced by `SessionSchemas`'s JSON-Schema
+ * via the `definition` "RideMetrics".
+ */
+export interface RideMetrics {
+  /**
+   * Distance covered during the session
+   */
+  distance_km?: number | null;
+  /**
+   * Elapsed riding time in milliseconds
+   */
+  duration_ms?: number | null;
+  /**
+   * Fuel consumed in litres over the session
+   */
+  fuel_used_l?: number | null;
+  /**
+   * Odometer reading the rider associates with this session (start or end; document convention in client)
+   */
+  odometer_km?: number | null;
+  /**
+   * Derived or entered efficiency for this session
+   */
+  fuel_efficiency_l_per_100km?: number | null;
+}
+/**
+ * A single logged session within an event. Track: practice/qualifying/race/trackday with lap fields. Road: road/commute/tour with ride_metrics and optional null laps.
  *
  * This interface was referenced by `SessionSchemas`'s JSON-Schema
  * via the `definition` "Session".
@@ -61,9 +93,9 @@ export interface Session {
    */
   user_id: string;
   /**
-   * The type of session. Affects how lap times are compared and displayed.
+   * Track types: practice, qualifying, race, trackday. Road types: road, commute, tour. API MUST reject mismatch with parent event venue.
    */
-  session_type: "practice" | "qualifying" | "race" | "trackday";
+  session_type: "practice" | "qualifying" | "race" | "trackday" | "road" | "commute" | "tour";
   /**
    * Best lap time in milliseconds as entered manually by the rider. Preserved as a fallback when no logger data is available.
    */
@@ -88,6 +120,10 @@ export interface Session {
    * URL of an audio voice note in blob storage. Transcribed by the voice ingestion pipeline.
    */
   voice_note_url?: string | null;
+  /**
+   * Distance, duration, fuel, odometer snapshot for road-oriented sessions
+   */
+  ride_metrics?: RideMetrics | null;
   /**
    * Timestamp when this session was created
    */

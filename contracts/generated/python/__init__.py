@@ -1,7 +1,8 @@
-﻿"""Auto-generated Pydantic models from contracts/json-schema/. DO NOT EDIT."""
+"""Auto-generated Pydantic models from contracts/json-schema/. DO NOT EDIT."""
 from .ai import *  # noqa: F401, F403
 from .auth import *  # noqa: F401, F403
 from .conditions import *  # noqa: F401, F403
+from .event import *  # noqa: F401, F403
 from .garage import *  # noqa: F401, F403
 from .progress import *  # noqa: F401, F403
 from .session import *  # noqa: F401, F403

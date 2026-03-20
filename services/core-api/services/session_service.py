@@ -25,13 +25,17 @@ from schemas.events import (
     EventCreate,
     EventResponse,
     EventUpdate,
+    EventVenue,
 )
 from schemas.sessions import (
+    ROAD_SESSION_TYPES,
+    TRACK_SESSION_TYPES,
     ChangeLogCreate,
     ChangeLogResponse,
     SessionCreate,
     SessionDetailResponse,
     SessionResponse,
+    SessionType,
     SessionUpdate,
     SetupSnapshotCreate,
     SetupSnapshotResponse,
@@ -40,6 +44,70 @@ from schemas.tracks import TrackCreate, TrackResponse, TrackUpdate
 
 
 class SessionService:
+
+    @staticmethod
+    def _normalize_new_event(data: EventCreate) -> tuple[str, uuid.UUID | None, dict | None]:
+        """Return (venue, track_id, ride_location dict or None)."""
+        venue = data.venue
+        if venue is None:
+            if data.track_id is not None:
+                venue = EventVenue.track
+            elif data.ride_location is not None:
+                venue = EventVenue.road
+            else:
+                raise ValidationException(
+                    error="Provide track_id for a track event or ride_location for a road event",
+                )
+        if venue == EventVenue.track:
+            if data.track_id is None:
+                raise ValidationException(error="track_id is required for track events")
+            return venue.value, data.track_id, None
+        if data.track_id is not None:
+            raise ValidationException(error="track_id must be null for road events")
+        if data.ride_location is None:
+            raise ValidationException(error="ride_location is required for road events")
+        loc = data.ride_location
+        has_label = loc.label and str(loc.label).strip()
+        has_sources = loc.sources and len(loc.sources) > 0
+        if not has_label and not has_sources:
+            raise ValidationException(
+                error="ride_location must include a label or at least one source",
+            )
+        return venue.value, None, loc.model_dump()
+
+    @staticmethod
+    def _assert_event_consistency(
+        venue: str,
+        track_id: uuid.UUID | None,
+        ride_location: dict | None,
+    ) -> None:
+        if venue == EventVenue.track.value:
+            if track_id is None:
+                raise ValidationException(error="Track events require track_id")
+        elif venue == EventVenue.road.value:
+            if track_id is not None:
+                raise ValidationException(error="Road events cannot have track_id")
+            if ride_location is None:
+                raise ValidationException(error="Road events require ride_location")
+            has_label = ride_location.get("label") and str(ride_location["label"]).strip()
+            has_sources = ride_location.get("sources") and len(ride_location["sources"]) > 0
+            if not has_label and not has_sources:
+                raise ValidationException(
+                    error="ride_location must include a label or at least one source",
+                )
+
+    @staticmethod
+    def _assert_session_type_for_event(session_type: SessionType, event_venue: str) -> None:
+        if event_venue == EventVenue.track.value:
+            if session_type not in TRACK_SESSION_TYPES:
+                raise ValidationException(
+                    error="session_type must be practice, qualifying, race, or trackday for track events",
+                )
+        elif event_venue == EventVenue.road.value:
+            if session_type not in ROAD_SESSION_TYPES:
+                raise ValidationException(
+                    error="session_type must be road, commute, or tour for road events",
+                )
 
     # ═══════════════════════ TRACKS ═══════════════════════
 
@@ -119,6 +187,7 @@ class SessionService:
         *,
         bike_id: uuid.UUID | None = None,
         track_id: uuid.UUID | None = None,
+        venue: str | None = None,
         from_date: date | None = None,
         to_date: date | None = None,
     ) -> list[EventResponse]:
@@ -131,6 +200,8 @@ class SessionService:
             stmt = stmt.where(Event.bike_id == bike_id)
         if track_id:
             stmt = stmt.where(Event.track_id == track_id)
+        if venue is not None:
+            stmt = stmt.where(Event.venue == venue)
         if from_date:
             stmt = stmt.where(Event.date >= from_date)
         if to_date:
@@ -149,10 +220,13 @@ class SessionService:
         if data.conditions:
             ConditionsModel.model_validate(data.conditions.model_dump())
 
+        v_str, tid, rloc = SessionService._normalize_new_event(data)
         event = Event(
             user_id=user_id,
             bike_id=data.bike_id,
-            track_id=data.track_id,
+            venue=v_str,
+            track_id=tid,
+            ride_location=rloc,
             date=data.date,
             conditions=data.conditions.model_dump() if data.conditions else {},
         )
@@ -197,9 +271,17 @@ class SessionService:
         if "conditions" in update_data and update_data["conditions"] is not None:
             ConditionsModel.model_validate(update_data["conditions"])
             update_data["conditions"] = data.conditions.model_dump()
+        if "ride_location" in update_data and update_data["ride_location"] is not None:
+            update_data["ride_location"] = data.ride_location.model_dump()
 
         for field, value in update_data.items():
             setattr(event, field, value)
+
+        SessionService._assert_event_consistency(
+            event.venue,
+            event.track_id,
+            event.ride_location,
+        )
 
         await session.commit()
         await session.refresh(event)
@@ -231,22 +313,32 @@ class SessionService:
         user_id: uuid.UUID,
         *,
         event_id: uuid.UUID | None = None,
+        bike_id: uuid.UUID | None = None,
+        venue: str | None = None,
         from_date: date | None = None,
         to_date: date | None = None,
     ) -> list[SessionResponse]:
-        stmt = (
-            select(Session)
-            .where(Session.user_id == user_id)
-            .order_by(Session.created_at.desc())
+        stmt = select(Session).where(Session.user_id == user_id)
+        need_event = (
+            bike_id is not None
+            or venue is not None
+            or from_date is not None
+            or to_date is not None
         )
+        if need_event:
+            stmt = stmt.join(Event, Session.event_id == Event.id)
         if event_id:
             stmt = stmt.where(Session.event_id == event_id)
-        if from_date or to_date:
-            stmt = stmt.join(Event, Session.event_id == Event.id)
-            if from_date:
-                stmt = stmt.where(Event.date >= from_date)
-            if to_date:
-                stmt = stmt.where(Event.date <= to_date)
+        if bike_id is not None:
+            stmt = stmt.where(Event.bike_id == bike_id)
+        if venue is not None:
+            stmt = stmt.where(Event.venue == venue)
+        if from_date is not None:
+            stmt = stmt.where(Event.date >= from_date)
+        if to_date is not None:
+            stmt = stmt.where(Event.date <= to_date)
+
+        stmt = stmt.order_by(Session.created_at.desc())
 
         result = await session.execute(stmt)
         sessions = result.scalars().all()
@@ -268,11 +360,15 @@ class SessionService:
         if event.user_id != user_id:
             raise ForbiddenException(error="You do not have access to this event")
 
+        SessionService._assert_session_type_for_event(data.session_type, event.venue)
+
         session_data = data.model_dump()
         if session_data.get("tire_front"):
             session_data["tire_front"] = data.tire_front.model_dump()
         if session_data.get("tire_rear"):
             session_data["tire_rear"] = data.tire_rear.model_dump()
+        if session_data.get("ride_metrics"):
+            session_data["ride_metrics"] = data.ride_metrics.model_dump()
 
         sess = Session(user_id=user_id, **session_data)
         session.add(sess)
@@ -341,9 +437,19 @@ class SessionService:
             update_data["tire_front"] = data.tire_front.model_dump()
         if "tire_rear" in update_data and update_data["tire_rear"] is not None:
             update_data["tire_rear"] = data.tire_rear.model_dump()
+        if "ride_metrics" in update_data and update_data["ride_metrics"] is not None:
+            update_data["ride_metrics"] = data.ride_metrics.model_dump()
 
         for field, value in update_data.items():
             setattr(sess, field, value)
+
+        if "session_type" in update_data:
+            ev_result = await session.execute(select(Event).where(Event.id == sess.event_id))
+            ev = ev_result.scalar_one()
+            SessionService._assert_session_type_for_event(
+                SessionType(sess.session_type),
+                ev.venue,
+            )
 
         await session.commit()
         await session.refresh(sess)

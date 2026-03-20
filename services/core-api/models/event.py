@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Date, DateTime, ForeignKey, Index, text
+from sqlalchemy import Date, DateTime, ForeignKey, Index, String, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
@@ -31,11 +31,17 @@ class Event(Base):
         ForeignKey("core.bikes.id", ondelete="CASCADE"),
         nullable=False,
     )
-    track_id: Mapped[uuid.UUID] = mapped_column(
+    venue: Mapped[str] = mapped_column(
+        String(10),
+        nullable=False,
+        server_default=text("'track'"),
+    )
+    track_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("core.tracks.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
     )
+    ride_location: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     date: Mapped[str] = mapped_column(Date, nullable=False)
     conditions: Mapped[dict] = mapped_column(
         JSONB, nullable=False, server_default=text("'{}'::jsonb")

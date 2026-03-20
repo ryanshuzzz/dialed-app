@@ -20,6 +20,7 @@ router = APIRouter(prefix="/garage/events", tags=["Events"])
 async def list_events(
     bike_id: uuid.UUID | None = Query(None),
     track_id: uuid.UUID | None = Query(None),
+    venue: str | None = Query(None, description="Filter by track or road"),
     from_date: date | None = Query(None),
     to_date: date | None = Query(None),
     user: dict = Depends(get_current_user),
@@ -27,7 +28,7 @@ async def list_events(
 ) -> list[EventResponse]:
     return await SessionService.list_events(
         session, uuid.UUID(user["user_id"]),
-        bike_id=bike_id, track_id=track_id,
+        bike_id=bike_id, track_id=track_id, venue=venue,
         from_date=from_date, to_date=to_date,
     )
 

@@ -206,7 +206,9 @@ async def event(db_session: AsyncSession, user, bike, track):
     e = Event(
         user_id=user.id,
         bike_id=bike.id,
+        venue="track",
         track_id=track.id,
+        ride_location=None,
         date=date.today(),
         conditions={"temp_c": 25, "condition": "dry"},
     )

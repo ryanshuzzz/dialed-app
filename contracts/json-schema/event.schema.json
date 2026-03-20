@@ -1,0 +1,225 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://dialed.app/schemas/event.schema.json",
+  "title": "Track and road events",
+  "description": "An outing for a bike on a calendar date: either at a known track (track day / race) or on the road. Sessions are always created under an event.",
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "dateTime": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "RideLocationSource": {
+      "type": "object",
+      "description": "A single source that contributed to location knowledge for this ride.",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["manual", "gpx", "map_match", "telemetry", "imported"],
+          "description": "How this location fragment was obtained"
+        },
+        "ref": {
+          "type": ["string", "null"],
+          "description": "URI, blob id, or external route identifier when applicable"
+        },
+        "captured_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "When this source was recorded or imported"
+        },
+        "notes": {
+          "type": ["string", "null"],
+          "description": "Free-text provenance (e.g. logger model, app name)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "RideLocation": {
+      "type": "object",
+      "description": "Human- and machine-readable location for road rides. At least one of label or sources should be present.",
+      "properties": {
+        "label": {
+          "type": ["string", "null"],
+          "description": "Primary display name (e.g. 'Angeles Crest', 'Office commute')"
+        },
+        "notes": {
+          "type": ["string", "null"],
+          "description": "Additional route or area description"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RideLocationSource"
+          },
+          "description": "Ordered or unordered list of contributing sources"
+        },
+        "approximate_lat": {
+          "type": ["number", "null"],
+          "minimum": -90,
+          "maximum": 90,
+          "description": "Optional centroid or start latitude (WGS84)"
+        },
+        "approximate_lon": {
+          "type": ["number", "null"],
+          "minimum": -180,
+          "maximum": 180,
+          "description": "Optional centroid or start longitude (WGS84)"
+        }
+      },
+      "additionalProperties": false
+    },
+    "EventVenue": {
+      "type": "string",
+      "enum": ["track", "road"],
+      "description": "track = circuit or known venue from the tracks catalog; road = public roads or undefined course"
+    },
+    "Event": {
+      "type": "object",
+      "required": [
+        "id",
+        "user_id",
+        "bike_id",
+        "venue",
+        "date",
+        "conditions",
+        "created_at",
+        "updated_at"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "user_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "bike_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "venue": {
+          "$ref": "#/$defs/EventVenue"
+        },
+        "track_id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/uuid"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Set when venue is track; null for road rides"
+        },
+        "ride_location": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/RideLocation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Set when venue is road; optional extra context for track days"
+        },
+        "date": {
+          "$ref": "#/$defs/date"
+        },
+        "conditions": {
+          "$ref": "conditions.schema.json#/$defs/Conditions"
+        },
+        "created_at": {
+          "$ref": "#/$defs/dateTime"
+        },
+        "updated_at": {
+          "$ref": "#/$defs/dateTime"
+        }
+      },
+      "additionalProperties": false
+    },
+    "CreateEventRequest": {
+      "type": "object",
+      "required": ["bike_id", "date"],
+      "properties": {
+        "bike_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "venue": {
+          "$ref": "#/$defs/EventVenue",
+          "description": "When omitted, server defaults to track if track_id is set, else road if ride_location is set"
+        },
+        "track_id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ride_location": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/RideLocation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "date": {
+          "$ref": "#/$defs/date"
+        },
+        "conditions": {
+          "$ref": "conditions.schema.json#/$defs/Conditions"
+        }
+      },
+      "additionalProperties": false
+    },
+    "UpdateEventRequest": {
+      "type": "object",
+      "properties": {
+        "bike_id": {
+          "$ref": "#/$defs/uuid"
+        },
+        "venue": {
+          "$ref": "#/$defs/EventVenue"
+        },
+        "track_id": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ride_location": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/RideLocation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "date": {
+          "$ref": "#/$defs/date"
+        },
+        "conditions": {
+          "$ref": "conditions.schema.json#/$defs/Conditions"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://dialed.app/schemas/session.schema.json",
   "title": "Session schemas",
-  "description": "Track session, setup snapshots, and change log data shapes for the Dialed platform",
+  "description": "Session (track or road), setup snapshots, and change log data shapes. Sessions always belong to an event (track day or road outing).",
   "$defs": {
     "uuid": {
       "type": "string",
@@ -29,13 +29,44 @@
         "laps": {
           "type": ["integer", "null"],
           "description": "Number of laps on this tire at the start of the session"
+        },
+        "pressure_kpa": {
+          "type": ["number", "null"],
+          "description": "Cold (or reference) tire pressure in kilopascals at session start. Detailed histories remain on tire-pressure logs."
+        }
+      },
+      "additionalProperties": false
+    },
+    "RideMetrics": {
+      "type": "object",
+      "description": "Optional ride outcomes for analytics (especially road). Track sessions often leave laps populated instead.",
+      "properties": {
+        "distance_km": {
+          "type": ["number", "null"],
+          "description": "Distance covered during the session"
+        },
+        "duration_ms": {
+          "type": ["integer", "null"],
+          "description": "Elapsed riding time in milliseconds"
+        },
+        "fuel_used_l": {
+          "type": ["number", "null"],
+          "description": "Fuel consumed in litres over the session"
+        },
+        "odometer_km": {
+          "type": ["integer", "null"],
+          "description": "Odometer reading the rider associates with this session (start or end; document convention in client)"
+        },
+        "fuel_efficiency_l_per_100km": {
+          "type": ["number", "null"],
+          "description": "Derived or entered efficiency for this session"
         }
       },
       "additionalProperties": false
     },
     "Session": {
       "type": "object",
-      "description": "A single on-track session within a track event. A session has a type (practice, qualifying, etc.) and captures lap times from two sources: manual rider entry and CSV logger data.",
+      "description": "A single logged session within an event. Track: practice/qualifying/race/trackday with lap fields. Road: road/commute/tour with ride_metrics and optional null laps.",
       "required": ["id", "event_id", "user_id", "session_type", "created_at", "updated_at"],
       "properties": {
         "id": {
@@ -52,8 +83,8 @@
         },
         "session_type": {
           "type": "string",
-          "enum": ["practice", "qualifying", "race", "trackday"],
-          "description": "The type of session. Affects how lap times are compared and displayed."
+          "enum": ["practice", "qualifying", "race", "trackday", "road", "commute", "tour"],
+          "description": "Track types: practice, qualifying, race, trackday. Road types: road, commute, tour. API MUST reject mismatch with parent event venue."
         },
         "manual_best_lap_ms": {
           "type": ["integer", "null"],
@@ -85,6 +116,13 @@
           "type": ["string", "null"],
           "format": "uri",
           "description": "URL of an audio voice note in blob storage. Transcribed by the voice ingestion pipeline."
+        },
+        "ride_metrics": {
+          "oneOf": [
+            { "$ref": "#/$defs/RideMetrics" },
+            { "type": "null" }
+          ],
+          "description": "Distance, duration, fuel, odometer snapshot for road-oriented sessions"
         },
         "created_at": {
           "$ref": "#/$defs/dateTime",

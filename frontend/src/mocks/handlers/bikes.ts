@@ -129,6 +129,16 @@ export const bikeHandlers = [
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
+    MOCK_BIKES.push(newBike);
+    MOCK_BIKE_DETAILS[newBike.id] = {
+      ...newBike,
+      stats: {
+        maintenance_count: 0,
+        modification_count: 0,
+        session_count: 0,
+        best_lap_ms: null,
+      },
+    };
     return HttpResponse.json(newBike, { status: 201 });
   }),
 
