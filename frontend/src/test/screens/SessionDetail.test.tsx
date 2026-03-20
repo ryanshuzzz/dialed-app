@@ -17,6 +17,13 @@ const mockSession: SessionDetailType = {
   tire_rear: { brand: 'Pirelli', compound: 'SC2', laps: 45 },
   rider_feedback: 'Front end feels planted but rear is sliding on exit of T4.',
   voice_note_url: null,
+  ride_metrics: {
+    distance_km: 120,
+    duration_ms: 90 * 60 * 1000,
+    fuel_used_l: null,
+    odometer_km: null,
+    fuel_efficiency_l_per_100km: null,
+  },
   created_at: '2025-09-12T09:00:00Z',
   updated_at: '2025-09-12T12:00:00Z',
   snapshots: [
@@ -195,6 +202,22 @@ function setupStandardFetches() {
     if (url.includes('/telemetry/session-1/lap/')) {
       return Promise.resolve(mockResponse({ session_id: 'session-1', lap_number: 1, points: [] }));
     }
+    if (url.includes('/garage/events/event-1')) {
+      return Promise.resolve(
+        mockResponse({
+          id: 'event-1',
+          user_id: 'user-1',
+          bike_id: 'bike-1',
+          venue: 'track',
+          track_id: 'track-1',
+          ride_location: null,
+          date: '2025-09-12',
+          conditions: {},
+          created_at: '2025-09-10T08:00:00Z',
+          updated_at: '2025-09-12T18:00:00Z',
+        }),
+      );
+    }
     // Default: return empty
     return Promise.resolve(mockResponse({}));
   });
@@ -222,7 +245,7 @@ describe('SessionDetail screen', () => {
     await waitFor(() => {
       expect(screen.getByTestId('rider-feedback')).toBeInTheDocument();
     });
-    expect(screen.getByTestId('rider-feedback')).toHaveTextContent('Front end feels planted');
+    expect(screen.getByTestId('rider-feedback')).toHaveValue('Front end feels planted but rear is sliding on exit of T4.');
   });
 
   it('renders change log entries', async () => {
@@ -318,5 +341,16 @@ describe('SessionDetail screen', () => {
     });
 
     expect(screen.getByTestId('channel-toggle')).toBeInTheDocument();
+  });
+
+  it('renders ride metrics when present', async () => {
+    setupStandardFetches();
+
+    renderWithProviders(<SessionDetail />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('ride-metrics-section')).toBeInTheDocument();
+    });
+    expect(screen.getByText('120 km')).toBeInTheDocument();
   });
 });

@@ -61,7 +61,9 @@ async def _create_session_chain(
     event = Event(
         user_id=user_id,
         bike_id=bike.id,
+        venue="track",
         track_id=track.id,
+        ride_location=None,
         date=event_date,
         conditions={},
     )

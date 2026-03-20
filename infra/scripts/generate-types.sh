@@ -101,6 +101,7 @@ for schema_file in "$SCHEMA_DIR"/*.schema.json; do
   json2ts \
     --input "$schema_file" \
     --output "$output_file" \
+    --cwd "$SCHEMA_DIR" \
     --bannerComment "/* Auto-generated from contracts/json-schema/${basename}.schema.json — DO NOT EDIT */" \
     --unreachableDefinitions
 

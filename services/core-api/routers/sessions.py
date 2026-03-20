@@ -28,6 +28,8 @@ router = APIRouter(prefix="/sessions", tags=["Sessions"])
 @router.get("", response_model=list[SessionResponse])
 async def list_sessions(
     event_id: uuid.UUID | None = Query(None),
+    bike_id: uuid.UUID | None = Query(None),
+    venue: str | None = Query(None, description="Filter by parent event venue"),
     from_date: date | None = Query(None),
     to_date: date | None = Query(None),
     user: dict = Depends(get_current_user),
@@ -35,7 +37,8 @@ async def list_sessions(
 ) -> list[SessionResponse]:
     return await SessionService.list_sessions(
         session, uuid.UUID(user["user_id"]),
-        event_id=event_id, from_date=from_date, to_date=to_date,
+        event_id=event_id, bike_id=bike_id, venue=venue,
+        from_date=from_date, to_date=to_date,
     )
 
 

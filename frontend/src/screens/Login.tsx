@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { apiPost, apiGet } from '@/api/client';
+import { apiPost, apiGet, ApiError } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import type { AuthResponse, LoginRequest, RegisterRequest, UserProfile } from '@/api/types';
 
@@ -56,8 +56,15 @@ export default function Login() {
 
       navigate('/', { replace: true });
     } catch (err) {
-      const msg =
-        err instanceof Error ? err.message : 'Something went wrong. Please try again.';
+      let msg: string;
+      if (err instanceof ApiError) {
+        msg = err.message;
+      } else if (err instanceof TypeError && err.message === 'Failed to fetch') {
+        msg =
+          'Cannot reach the API (e.g. gateway on port 8000). For frontend-only dev, MSW must be running — check the browser console for [MSW] errors, or start the full stack with Docker.';
+      } else {
+        msg = err instanceof Error ? err.message : 'Something went wrong. Please try again.';
+      }
       setError(msg);
     } finally {
       setIsSubmitting(false);

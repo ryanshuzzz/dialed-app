@@ -1,8 +1,9 @@
-"""Event domain schemas — track day events with weather/surface conditions."""
+"""Event domain schemas — track days and road outings with conditions JSONB."""
 
 import datetime as _dt
 import uuid
 from enum import Enum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -14,6 +15,11 @@ class TrackCondition(str, Enum):
     damp = "damp"
     wet = "wet"
     mixed = "mixed"
+
+
+class EventVenue(str, Enum):
+    track = "track"
+    road = "road"
 
 
 class ConditionsModel(BaseModel):
@@ -41,23 +47,50 @@ class ConditionsModel(BaseModel):
         return v
 
 
+class RideLocationSourceModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["manual", "gpx", "map_match", "telemetry", "imported"]
+    ref: str | None = None
+    captured_at: _dt.datetime | None = None
+    notes: str | None = None
+
+
+class RideLocationModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: str | None = None
+    notes: str | None = None
+    sources: list[RideLocationSourceModel] | None = None
+    approximate_lat: float | None = Field(None, ge=-90, le=90)
+    approximate_lon: float | None = Field(None, ge=-180, le=180)
+
+
 # ── Requests ──
 
 
 class EventCreate(BaseModel):
-    """Create a new track day event."""
+    """Create a track day or road outing event."""
+
+    model_config = ConfigDict(extra="forbid")
 
     bike_id: uuid.UUID
-    track_id: uuid.UUID
     date: _dt.date
+    venue: EventVenue | None = None
+    track_id: uuid.UUID | None = None
+    ride_location: RideLocationModel | None = None
     conditions: ConditionsModel | None = None
 
 
 class EventUpdate(BaseModel):
     """Partial update to event fields. All fields optional."""
 
+    model_config = ConfigDict(extra="forbid")
+
     bike_id: uuid.UUID | None = None
+    venue: EventVenue | None = None
     track_id: uuid.UUID | None = None
+    ride_location: RideLocationModel | None = None
     date: _dt.date | None = None
     conditions: ConditionsModel | None = None
 
@@ -66,14 +99,16 @@ class EventUpdate(BaseModel):
 
 
 class EventResponse(BaseModel):
-    """Single track day event."""
+    """Single event (track or road)."""
 
     model_config = ConfigDict(from_attributes=True)
 
     id: uuid.UUID
     user_id: uuid.UUID
     bike_id: uuid.UUID
-    track_id: uuid.UUID
+    venue: EventVenue
+    track_id: uuid.UUID | None = None
+    ride_location: RideLocationModel | None = None
     date: _dt.date
     conditions: ConditionsModel
     created_at: _dt.datetime

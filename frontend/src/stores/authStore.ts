@@ -1,6 +1,13 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { UserProfile } from '@/api/types';
+import { useUiStore } from '@/stores/uiStore';
+
+function syncNavRiderTypeFromUser(user: UserProfile | null) {
+  if (user?.rider_type) {
+    useUiStore.getState().setRiderType(user.rider_type);
+  }
+}
 
 interface AuthState {
   token: string | null;
@@ -18,11 +25,18 @@ export const useAuthStore = create<AuthState>()(
       token: null,
       refreshToken: null,
       user: null,
-      login: (token, refreshToken, user) =>
-        set({ token, refreshToken, user }),
-      logout: () =>
-        set({ token: null, refreshToken: null, user: null }),
-      setUser: (user) => set({ user }),
+      login: (token, refreshToken, user) => {
+        set({ token, refreshToken, user });
+        syncNavRiderTypeFromUser(user);
+      },
+      logout: () => {
+        set({ token: null, refreshToken: null, user: null });
+        useUiStore.getState().setRiderType('street');
+      },
+      setUser: (user) => {
+        set({ user });
+        syncNavRiderTypeFromUser(user);
+      },
       setToken: (token) => set({ token }),
     }),
     {
@@ -32,6 +46,11 @@ export const useAuthStore = create<AuthState>()(
         refreshToken: state.refreshToken,
         user: state.user,
       }),
+      onRehydrateStorage: () => (state) => {
+        if (state?.user?.rider_type) {
+          useUiStore.getState().setRiderType(state.user.rider_type);
+        }
+      },
     },
   ),
 );

@@ -1,0 +1,9 @@
+# Repo-root virtualenv (`.venv`) — codegen, scripts, one-off tooling.
+# Not used by Docker services (each service has its own requirements.txt).
+#
+#   python -m venv .venv
+#   .venv\Scripts\activate    # Windows
+#   source .venv/bin/activate   # macOS / Linux
+#   pip install -r requirements-dev.txt
+
+-r infra/scripts/requirements-codegen.txt

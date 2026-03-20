@@ -31,6 +31,22 @@ async def test_create_modification(client: AsyncClient, user, bike):
     assert body["removed_at"] is None
 
 
+async def test_create_modification_cosmetics_category(
+    client: AsyncClient, user, bike
+):
+    resp = await client.post(
+        f"/garage/bikes/{bike.id}/mods",
+        json={
+            "action": "installed",
+            "category": "cosmetics",
+            "part_name": "Custom fairing kit",
+            "installed_at": "2025-03-15",
+        },
+    )
+    assert resp.status_code == 201
+    assert resp.json()["category"] == "cosmetics"
+
+
 async def test_create_modification_invalid_category(
     client: AsyncClient, user, bike
 ):

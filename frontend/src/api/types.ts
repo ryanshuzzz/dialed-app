@@ -353,11 +353,37 @@ export interface UpdateTrackRequest {
 }
 
 // ---------- Events ----------
+export type EventVenue = 'track' | 'road';
+
+export type RideLocationSourceType =
+  | 'manual'
+  | 'gpx'
+  | 'map_match'
+  | 'telemetry'
+  | 'imported';
+
+export interface RideLocationSource {
+  type: RideLocationSourceType;
+  ref?: string | null;
+  captured_at?: string | null;
+  notes?: string | null;
+}
+
+export interface RideLocation {
+  label?: string | null;
+  notes?: string | null;
+  sources?: RideLocationSource[];
+  approximate_lat?: number | null;
+  approximate_lon?: number | null;
+}
+
 export interface TrackEvent {
   id: string;
   user_id: string;
   bike_id: string;
-  track_id: string;
+  venue: EventVenue;
+  track_id?: string | null;
+  ride_location?: RideLocation | null;
   date: string;
   conditions: Conditions;
   created_at: string;
@@ -366,14 +392,18 @@ export interface TrackEvent {
 
 export interface CreateEventRequest {
   bike_id: string;
-  track_id: string;
   date: string;
+  venue?: EventVenue;
+  track_id?: string | null;
+  ride_location?: RideLocation | null;
   conditions?: Conditions;
 }
 
 export interface UpdateEventRequest {
   bike_id?: string;
-  track_id?: string;
+  venue?: EventVenue;
+  track_id?: string | null;
+  ride_location?: RideLocation | null;
   date?: string;
   conditions?: Conditions;
 }
@@ -383,19 +413,38 @@ export interface TireSnapshot {
   brand?: string | null;
   compound?: string | null;
   laps?: number | null;
+  pressure_kpa?: number | null;
+}
+
+export type SessionType =
+  | 'practice'
+  | 'qualifying'
+  | 'race'
+  | 'trackday'
+  | 'road'
+  | 'commute'
+  | 'tour';
+
+export interface RideMetrics {
+  distance_km?: number | null;
+  duration_ms?: number | null;
+  fuel_used_l?: number | null;
+  odometer_km?: number | null;
+  fuel_efficiency_l_per_100km?: number | null;
 }
 
 export interface Session {
   id: string;
   event_id: string;
   user_id: string;
-  session_type: 'practice' | 'qualifying' | 'race' | 'trackday';
+  session_type: SessionType;
   manual_best_lap_ms?: number | null;
   csv_best_lap_ms?: number | null;
   tire_front?: TireSnapshot | null;
   tire_rear?: TireSnapshot | null;
   rider_feedback?: string | null;
   voice_note_url?: string | null;
+  ride_metrics?: RideMetrics | null;
   created_at: string;
   updated_at: string;
 }
@@ -424,21 +473,23 @@ export interface SessionDetail extends Session {
 
 export interface CreateSessionRequest {
   event_id: string;
-  session_type: 'practice' | 'qualifying' | 'race' | 'trackday';
+  session_type: SessionType;
   manual_best_lap_ms?: number | null;
   tire_front?: TireSnapshot | null;
   tire_rear?: TireSnapshot | null;
   rider_feedback?: string | null;
   voice_note_url?: string | null;
+  ride_metrics?: RideMetrics | null;
 }
 
 export interface UpdateSessionRequest {
-  session_type?: 'practice' | 'qualifying' | 'race' | 'trackday';
+  session_type?: SessionType;
   manual_best_lap_ms?: number | null;
   tire_front?: TireSnapshot | null;
   tire_rear?: TireSnapshot | null;
   rider_feedback?: string | null;
   voice_note_url?: string | null;
+  ride_metrics?: RideMetrics | null;
 }
 
 export interface CreateSnapshotRequest {
@@ -490,7 +541,7 @@ export interface SessionHistoryItem {
   event_id: string;
   date: string;
   track_name: string;
-  session_type: 'practice' | 'qualifying' | 'race' | 'trackday';
+  session_type: SessionType;
   best_lap_ms?: number | null;
   delta_from_previous_ms?: number | null;
 }

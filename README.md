@@ -92,6 +92,17 @@ Dialed uses a hybrid backend with three services, chosen to balance clean domain
 - Python 3.12+
 - An Anthropic API key (for AI suggestions)
 
+**Optional — repo-root Python venv** (codegen, local scripts; Docker services use their own images):
+
+```bash
+python -m venv .venv
+# Windows: .venv\Scripts\activate
+# macOS/Linux: source .venv/bin/activate
+pip install -r requirements-dev.txt
+```
+
+`.venv/` is gitignored. `make generate-types` on Windows prepends `.venv\Scripts` to `PATH` when that folder exists, so `datamodel-codegen` is picked up without activating manually.
+
 ### Run the full stack locally
 
 ```bash
@@ -124,7 +135,18 @@ npm install
 npm run dev
 ```
 
+Or from the **repo root** (after installing frontend deps once):
+
+```bash
+npm install --prefix frontend
+npm run dev
+```
+
+(`package.json` at the root only forwards scripts into `frontend/` — there is no root `node_modules` for the app.)
+
 MSW intercepts all API calls with mock data generated from the OpenAPI specs.
+
+**Login fails / “Failed to fetch”:** The app calls `VITE_GATEWAY_URL` (default `http://localhost:8000`) + `/api/v1`. Without Docker, the **Mock Service Worker** must start so requests are intercepted. The worker file lives at `frontend/public/mockServiceWorker.js` (regenerate with `cd frontend && npx msw init public --save`). If you see `[MSW] Failed to register` in the console, do a hard refresh or clear site data for `localhost:5173`, then reload.
 
 -----
 
@@ -143,7 +165,7 @@ dialed-app/
 │   ├── telemetry-ingestion/← CSV/OCR/voice pipelines + TimescaleDB
 │   └── ai/                 ← rules engine + Claude API suggestions
 ├── frontend/               ← React 19 PWA
-├── agents/                 ← per-agent CLAUDE.md context files
+├── .claude/agents/         ← per-agent context for Claude Code (mirrors service ownership)
 ├── infra/                  ← Docker Compose, Nginx, scripts
 ├── CLAUDE.md               ← master agent context
 ├── Makefile
@@ -222,7 +244,7 @@ make test-all         # Run all service test suites
 make test-core        # Run Core API tests only
 make test-telemetry   # Run Telemetry/Ingestion tests only
 make test-ai          # Run AI tests only
-make generate-types   # Regenerate Pydantic + TS types from JSON Schema
+make generate-types   # Regenerate Pydantic + TS types from JSON Schema (on Windows uses PowerShell; needs `pip install -r infra/scripts/requirements-codegen.txt` + Node/npx)
 make seed             # Seed database with sample data
 make clean            # Stop everything and remove volumes
 ```
@@ -234,7 +256,7 @@ make clean            # Stop everything and remove volumes
 This repo is built using parallel agent development with Claude Code. Each agent gets:
 
 1. **Master context** — `CLAUDE.md` in the repo root (architecture, conventions, shared package)
-2. **Service-specific context** — `agents/CLAUDE-[service].md` (your tables, your endpoints, your testing priorities)
+2. **Service-specific context** — `.claude/agents/` (e.g. `core-api.md`, `frontend.md`) — your tables, endpoints, and testing priorities
 3. **Contracts** — `contracts/openapi/[service].yaml` + `contracts/json-schema/*.schema.json` (the law)
 4. **Shared package** — `shared/dialed_shared/` (auth, errors, logging — use it, don't reimplement it)
 

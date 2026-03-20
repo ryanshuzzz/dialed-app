@@ -50,12 +50,9 @@ export function useCreateSession() {
   return useMutation({
     mutationFn: async (data: CreateSessionRequest) => {
       if (!navigator.onLine) {
-        await useOfflineStore.getState().enqueue({
-          endpoint: '/sessions',
-          method: 'POST',
-          body: JSON.stringify(data),
-        });
-        return null as unknown as Session;
+        throw new Error(
+          'You need a network connection to create a session (a session id is required for uploads).',
+        );
       }
       return apiPost<Session>('/sessions', data);
     },

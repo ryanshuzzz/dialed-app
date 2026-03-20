@@ -150,7 +150,7 @@ A part installed, removed, or changed on a bike. Builds a full modification hist
 | `bike_id` | uuid | ✓ | Target bike |
 | `user_id` | uuid | ✓ | Logging user |
 | `action` | enum | ✓ | `installed` \| `removed` \| `swapped` \| `upgraded` \| `repaired` |
-| `category` | enum | ✓ | `exhaust` \| `ecu` \| `suspension` \| `brakes` \| `wheels_tires` \| `bodywork` \| `controls` \| `lighting` \| `engine` \| `drivetrain` \| `electronics` \| `ergonomics` \| `other` |
+| `category` | enum | ✓ | `exhaust` \| `ecu` \| `suspension` \| `brakes` \| `wheels_tires` \| `bodywork` \| `cosmetics` \| `controls` \| `lighting` \| `engine` \| `drivetrain` \| `electronics` \| `ergonomics` \| `other` |
 | `part_name` | string | ✓ | Part description (e.g. "Öhlins TTX GP rear shock") |
 | `brand` | string \| null | | Manufacturer name |
 | `part_number` | string \| null | | OEM or aftermarket part number |

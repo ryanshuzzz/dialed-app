@@ -74,6 +74,34 @@ async def test_create_event(client: AsyncClient, user, bike, track):
     body = resp.json()
     assert body["date"] == "2025-07-04"
     assert body["conditions"]["temp_c"] == 30
+    assert body["venue"] == "track"
+    assert body["track_id"] == str(track.id)
+    assert body.get("ride_location") is None
+
+
+async def test_create_road_event(client: AsyncClient, user, bike):
+    resp = await client.post(
+        "/garage/events",
+        json={
+            "bike_id": str(bike.id),
+            "date": "2025-08-01",
+            "ride_location": {"label": "Angeles Crest Highway"},
+            "conditions": {"temp_c": 22, "condition": "dry"},
+        },
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["venue"] == "road"
+    assert body["track_id"] is None
+    assert body["ride_location"]["label"] == "Angeles Crest Highway"
+
+
+async def test_create_event_neither_track_nor_road(client: AsyncClient, user, bike):
+    resp = await client.post(
+        "/garage/events",
+        json={"bike_id": str(bike.id), "date": "2025-08-02"},
+    )
+    assert resp.status_code == 422
 
 
 async def test_list_events(client: AsyncClient, user, event):
@@ -88,6 +116,14 @@ async def test_list_events_filter_bike(client: AsyncClient, user, event, bike):
     )
     assert resp.status_code == 200
     assert all(e["bike_id"] == str(bike.id) for e in resp.json())
+
+
+async def test_list_events_filter_venue_track(
+    client: AsyncClient, user, event, bike
+):
+    resp = await client.get("/garage/events", params={"venue": "track"})
+    assert resp.status_code == 200
+    assert all(e["venue"] == "track" for e in resp.json())
 
 
 async def test_get_event_not_found(client: AsyncClient, user):
@@ -142,6 +178,41 @@ async def test_create_session_invalid_type(client: AsyncClient, user, event):
     assert resp.status_code == 422
 
 
+async def test_create_session_road_type_on_track_event_fails(
+    client: AsyncClient, user, event
+):
+    resp = await client.post(
+        "/sessions",
+        json={"event_id": str(event.id), "session_type": "road"},
+    )
+    assert resp.status_code == 422
+
+
+async def test_create_session_road_event(client: AsyncClient, user, bike):
+    ev = await client.post(
+        "/garage/events",
+        json={
+            "bike_id": str(bike.id),
+            "date": "2025-09-01",
+            "ride_location": {"label": "Commute"},
+        },
+    )
+    assert ev.status_code == 201
+    eid = ev.json()["id"]
+    resp = await client.post(
+        "/sessions",
+        json={
+            "event_id": eid,
+            "session_type": "commute",
+            "ride_metrics": {"distance_km": 12.5, "odometer_km": 15000},
+        },
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["session_type"] == "commute"
+    assert body["ride_metrics"]["distance_km"] == 12.5
+
+
 async def test_create_session_event_not_found(client: AsyncClient, user):
     resp = await client.post(
         "/sessions",
@@ -162,6 +233,25 @@ async def test_list_sessions_filter_event(
     resp = await client.get("/sessions", params={"event_id": str(event.id)})
     assert resp.status_code == 200
     assert all(s["event_id"] == str(event.id) for s in resp.json())
+
+
+async def test_list_sessions_filter_bike(
+    client: AsyncClient, user, bike, event, session_record
+):
+    resp = await client.get("/sessions", params={"bike_id": str(bike.id)})
+    assert resp.status_code == 200
+    rows = resp.json()
+    assert len(rows) >= 1
+    assert all(s["event_id"] == str(event.id) for s in rows)
+
+
+async def test_list_sessions_filter_venue_track(
+    client: AsyncClient, user, event, session_record
+):
+    resp = await client.get("/sessions", params={"venue": "track"})
+    assert resp.status_code == 200
+    ids = {s["id"] for s in resp.json()}
+    assert str(session_record.id) in ids
 
 
 async def test_get_session_detail(client: AsyncClient, user, session_record):

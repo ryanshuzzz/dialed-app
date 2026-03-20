@@ -12,12 +12,32 @@ from .bikes import SuspensionSpec
 
 
 class SessionType(str, Enum):
-    """Type of on-track session."""
+    """Track session types and road outing types."""
 
     practice = "practice"
     qualifying = "qualifying"
     race = "race"
     trackday = "trackday"
+    road = "road"
+    commute = "commute"
+    tour = "tour"
+
+
+TRACK_SESSION_TYPES = frozenset(
+    {
+        SessionType.practice,
+        SessionType.qualifying,
+        SessionType.race,
+        SessionType.trackday,
+    }
+)
+ROAD_SESSION_TYPES = frozenset(
+    {
+        SessionType.road,
+        SessionType.commute,
+        SessionType.tour,
+    }
+)
 
 
 class TireSnapshot(BaseModel):
@@ -26,13 +46,24 @@ class TireSnapshot(BaseModel):
     brand: str | None = None
     compound: str | None = None
     laps: int | None = None
+    pressure_kpa: float | None = None
+
+
+class RideMetricsModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    distance_km: float | None = None
+    duration_ms: int | None = None
+    fuel_used_l: float | None = None
+    odometer_km: int | None = None
+    fuel_efficiency_l_per_100km: float | None = None
 
 
 # ── Session requests ──
 
 
 class SessionCreate(BaseModel):
-    """Create a new track session."""
+    """Create a new session (track or road, per parent event venue)."""
 
     event_id: uuid.UUID
     session_type: SessionType
@@ -41,6 +72,7 @@ class SessionCreate(BaseModel):
     tire_rear: TireSnapshot | None = None
     rider_feedback: str | None = None
     voice_note_url: str | None = None
+    ride_metrics: RideMetricsModel | None = None
 
 
 class SessionUpdate(BaseModel):
@@ -52,6 +84,7 @@ class SessionUpdate(BaseModel):
     tire_rear: TireSnapshot | None = None
     rider_feedback: str | None = None
     voice_note_url: str | None = None
+    ride_metrics: RideMetricsModel | None = None
 
 
 # ── Setup snapshot ──
@@ -119,6 +152,7 @@ class SessionResponse(BaseModel):
     tire_rear: TireSnapshot | None = None
     rider_feedback: str | None = None
     voice_note_url: str | None = None
+    ride_metrics: RideMetricsModel | None = None
     created_at: datetime
     updated_at: datetime
 

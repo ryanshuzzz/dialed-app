@@ -1,0 +1,13 @@
+---
+description: Token-efficient Agent usage — scope, threads, minimal exploration
+alwaysApply: true
+---
+
+# Token efficiency
+
+- Open every Agent task with **goal**, **definition of done**, and **out of scope** (paths/features not to touch).
+- Prefer **one checklist message** over many short follow-ups; **start a new chat** when the task pivots.
+- If you know the files, **name them**; avoid broad repo search unless blocked.
+- Replies should be **short**: bullets, files touched, commands run—no long narrative unless asked.
+- **Minimal diffs** only; no drive-by refactors or unrelated files.
+- Do not `@` huge folders; paste **minimal** errors (path + small snippet). Full detail lives in `cursor.md`.

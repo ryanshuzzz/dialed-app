@@ -34,7 +34,9 @@ const mockEvents: TrackEvent[] = [
     id: 'event-1',
     user_id: 'user-1',
     bike_id: 'bike-1',
+    venue: 'track',
     track_id: 'track-1',
+    ride_location: null,
     date: '2025-09-12',
     conditions: { condition: 'dry' },
     created_at: '2025-09-10T08:00:00Z',
@@ -78,12 +80,13 @@ afterEach(() => {
   fetchSpy.mockRestore();
 });
 
-function setupStandardFetches(extraHandler?: (url: string) => Response | undefined) {
-  fetchSpy.mockImplementation((input: string | URL | Request) => {
+function setupStandardFetches(extraHandler?: (url: string, method: string) => Response | undefined) {
+  fetchSpy.mockImplementation((input: string | URL | Request, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+    const method = init?.method ?? 'GET';
 
     if (extraHandler) {
-      const result = extraHandler(url);
+      const result = extraHandler(url, method);
       if (result) return Promise.resolve(result);
     }
 
@@ -93,10 +96,10 @@ function setupStandardFetches(extraHandler?: (url: string) => Response | undefin
     if (url.includes('/garage/tracks')) {
       return Promise.resolve(mockResponse(mockTracks));
     }
-    if (url.includes('/garage/events')) {
+    if (url.includes('/garage/events') && method === 'GET') {
       return Promise.resolve(mockResponse(mockEvents));
     }
-    if (url.includes('/sessions')) {
+    if (url.includes('/sessions') && method === 'POST') {
       const newSession: Session = {
         id: 'session-new',
         event_id: 'event-1',
@@ -108,6 +111,7 @@ function setupStandardFetches(extraHandler?: (url: string) => Response | undefin
         tire_rear: null,
         rider_feedback: null,
         voice_note_url: null,
+        ride_metrics: null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -136,6 +140,8 @@ describe('SessionLogger screen', () => {
     expect(screen.getByTestId('step-indicator')).toBeInTheDocument();
     expect(screen.getByTestId('step-event')).toBeInTheDocument();
     expect(screen.getByText('Select or Create Event')).toBeInTheDocument();
+    expect(screen.getByTestId('venue-track')).toBeInTheDocument();
+    expect(screen.getByTestId('venue-road')).toBeInTheDocument();
   });
 
   it('navigates from Event to Details step', async () => {
@@ -161,25 +167,21 @@ describe('SessionLogger screen', () => {
 
     renderWithProviders(<SessionLogger />);
 
-    // Step 1: Select event
     await waitForEventsLoaded();
     await user.selectOptions(screen.getByTestId('event-select'), 'event-1');
     await user.click(screen.getByTestId('next-button'));
 
-    // Step 2: Details
     await waitFor(() => {
       expect(screen.getByTestId('step-details')).toBeInTheDocument();
     });
     await user.click(screen.getByTestId('next-button'));
 
-    // Step 3: Upload
     await waitFor(() => {
       expect(screen.getByTestId('step-upload')).toBeInTheDocument();
     });
     expect(screen.getByText('Upload Data')).toBeInTheDocument();
     await user.click(screen.getByTestId('next-button'));
 
-    // Step 4: Review
     await waitFor(() => {
       expect(screen.getByTestId('step-review')).toBeInTheDocument();
     });
@@ -192,7 +194,6 @@ describe('SessionLogger screen', () => {
 
     renderWithProviders(<SessionLogger />);
 
-    // Navigate to review
     await waitForEventsLoaded();
     await user.selectOptions(screen.getByTestId('event-select'), 'event-1');
     await user.click(screen.getByTestId('next-button'));
@@ -213,7 +214,6 @@ describe('SessionLogger screen', () => {
 
     await user.click(screen.getByTestId('save-session'));
 
-    // Should navigate to session detail
     await waitFor(() => {
       expect(screen.getByTestId('session-detail-page')).toBeInTheDocument();
     });
@@ -225,7 +225,6 @@ describe('SessionLogger screen', () => {
 
     renderWithProviders(<SessionLogger />);
 
-    // Navigate to upload step
     await waitForEventsLoaded();
     await user.selectOptions(screen.getByTestId('event-select'), 'event-1');
     await user.click(screen.getByTestId('next-button'));
@@ -242,5 +241,110 @@ describe('SessionLogger screen', () => {
     expect(screen.getByTestId('csv-upload')).toBeInTheDocument();
     expect(screen.getByTestId('ocr-upload')).toBeInTheDocument();
     expect(screen.getByTestId('voice-upload')).toBeInTheDocument();
+  });
+
+  it('road flow: skip upload, save with ride_metrics in POST body', async () => {
+    const user = userEvent.setup();
+    const roadEvent: TrackEvent = {
+      id: 'event-road-x',
+      user_id: 'user-1',
+      bike_id: 'bike-1',
+      venue: 'road',
+      track_id: null,
+      ride_location: { label: 'Test loop' },
+      date: '2026-03-01',
+      conditions: {},
+      created_at: '2026-03-01T00:00:00Z',
+      updated_at: '2026-03-01T00:00:00Z',
+    };
+
+    fetchSpy.mockImplementation((input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.toString() : input.url;
+      const method = init?.method ?? 'GET';
+
+      if (url.includes('/garage/bikes')) return Promise.resolve(mockResponse(mockBikes));
+      if (url.includes('/garage/tracks')) return Promise.resolve(mockResponse(mockTracks));
+      if (url.includes('/garage/events') && method === 'GET') {
+        return Promise.resolve(mockResponse([roadEvent]));
+      }
+      if (url.includes('/sessions') && method === 'POST') {
+        return Promise.resolve(
+          mockResponse(
+            {
+              id: 'session-road-new',
+              event_id: 'event-road-x',
+              user_id: 'user-1',
+              session_type: 'road',
+              manual_best_lap_ms: null,
+              csv_best_lap_ms: null,
+              tire_front: null,
+              tire_rear: null,
+              rider_feedback: null,
+              voice_note_url: null,
+              ride_metrics: {
+                distance_km: 10,
+                duration_ms: 30 * 60 * 1000,
+                fuel_used_l: null,
+                odometer_km: null,
+                fuel_efficiency_l_per_100km: null,
+              },
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            },
+            201,
+          ),
+        );
+      }
+      return Promise.resolve(mockResponse({}));
+    });
+
+    renderWithProviders(<SessionLogger />);
+
+    await user.click(screen.getByTestId('venue-road'));
+    await waitFor(() => {
+      expect(screen.getByTestId('event-select').querySelectorAll('option').length).toBeGreaterThan(1);
+    });
+    await user.selectOptions(screen.getByTestId('event-select'), 'event-road-x');
+    await user.click(screen.getByTestId('next-button'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('step-details')).toBeInTheDocument();
+    });
+
+    const typeSelect = screen.getByTestId('session-type-select');
+    expect(typeSelect.querySelectorAll('option').length).toBe(3);
+
+    await user.type(screen.getByTestId('ride-metric-distance'), '10');
+    await user.type(screen.getByTestId('ride-metric-duration'), '30');
+
+    await user.click(screen.getByTestId('next-button'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('skip-upload-button')).toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId('skip-upload-button'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('step-review')).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByTestId('save-session'));
+
+    await waitFor(() => {
+      expect(screen.getByTestId('session-detail-page')).toBeInTheDocument();
+    });
+
+    const postCalls = fetchSpy.mock.calls.filter((c) => {
+      const url = typeof c[0] === 'string' ? c[0] : '';
+      const init = c[1] as RequestInit | undefined;
+      return url.includes('/sessions') && init?.method === 'POST';
+    });
+    expect(postCalls.length).toBeGreaterThanOrEqual(1);
+    const body = JSON.parse((postCalls[postCalls.length - 1][1] as RequestInit).body as string);
+    expect(body.session_type).toBe('road');
+    expect(body.ride_metrics).toEqual({
+      distance_km: 10,
+      duration_ms: 30 * 60 * 1000,
+    });
   });
 });

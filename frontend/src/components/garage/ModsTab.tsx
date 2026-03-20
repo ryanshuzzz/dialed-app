@@ -2,18 +2,7 @@ import { useState } from 'react';
 import { useModifications, useCreateModification } from '@/hooks/useModifications';
 import { ModRow } from '@/components/garage/ModRow';
 import type { Modification, CreateModificationRequest } from '@/api/types';
-
-const CATEGORY_OPTIONS = [
-  'exhaust',
-  'suspension',
-  'bodywork',
-  'controls',
-  'electronics',
-  'engine',
-  'brakes',
-  'wheels',
-  'other',
-];
+import { MODIFICATION_CATEGORIES } from '@/constants/modificationCategories';
 
 const ACTION_OPTIONS: Modification['action'][] = [
   'installed',
@@ -43,7 +32,7 @@ export function ModsTab({ bikeId }: ModsTabProps) {
 
   // Form state
   const [action, setAction] = useState<Modification['action']>('installed');
-  const [category, setCategory] = useState('exhaust');
+  const [category, setCategory] = useState<string>('suspension');
   const [partName, setPartName] = useState('');
   const [brand, setBrand] = useState('');
   const [cost, setCost] = useState('');
@@ -69,7 +58,7 @@ export function ModsTab({ bikeId }: ModsTabProps) {
         onSuccess: () => {
           setShowForm(false);
           setAction('installed');
-          setCategory('exhaust');
+          setCategory('suspension');
           setPartName('');
           setBrand('');
           setCost('');
@@ -97,7 +86,7 @@ export function ModsTab({ bikeId }: ModsTabProps) {
             data-testid="mod-category-filter"
           >
             <option value="">All Categories</option>
-            {CATEGORY_OPTIONS.map((cat) => (
+            {MODIFICATION_CATEGORIES.map((cat) => (
               <option key={cat} value={cat}>
                 {formatLabel(cat)}
               </option>
@@ -151,7 +140,7 @@ export function ModsTab({ bikeId }: ModsTabProps) {
                 onChange={(e) => setCategory(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
               >
-                {CATEGORY_OPTIONS.map((cat) => (
+                {MODIFICATION_CATEGORIES.map((cat) => (
                   <option key={cat} value={cat}>
                     {formatLabel(cat)}
                   </option>

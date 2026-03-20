@@ -82,6 +82,27 @@ const MOCK_SESSIONS: Session[] = [
     created_at: '2026-01-15T10:00:00Z',
     updated_at: '2026-01-15T12:00:00Z',
   },
+  {
+    id: 'session-road-1',
+    event_id: 'event-road-1',
+    user_id: 'user-1',
+    session_type: 'commute',
+    manual_best_lap_ms: null,
+    csv_best_lap_ms: null,
+    tire_front: null,
+    tire_rear: null,
+    rider_feedback: 'Smooth run, lane-splitting where legal.',
+    voice_note_url: null,
+    ride_metrics: {
+      distance_km: 42.5,
+      duration_ms: 45 * 60 * 1000,
+      fuel_used_l: 2.1,
+      odometer_km: 12500,
+      fuel_efficiency_l_per_100km: 4.9,
+    },
+    created_at: '2026-02-01T09:00:00Z',
+    updated_at: '2026-02-01T09:00:00Z',
+  },
 ];
 
 const MOCK_SNAPSHOTS: Record<string, SetupSnapshot[]> = {
@@ -131,20 +152,35 @@ const MOCK_CHANGES: Record<string, ChangeLog[]> = {
   ],
 };
 
+/** Mutable store so POST /sessions + PATCH + change log match GET detail (MSW dev flow). */
+const sessionsState: Session[] = MOCK_SESSIONS.map((s) => ({ ...s }));
+const snapshotsState: Record<string, SetupSnapshot[]> = Object.fromEntries(
+  Object.entries(MOCK_SNAPSHOTS).map(([k, v]) => [k, v.map((x) => ({ ...x, settings: { ...x.settings } }))]),
+);
+const changesState: Record<string, ChangeLog[]> = Object.fromEntries(
+  Object.entries(MOCK_CHANGES).map(([k, v]) => [k, [...v]]),
+);
+
+function ensureSessionChildren(sessionId: string): void {
+  if (!snapshotsState[sessionId]) snapshotsState[sessionId] = [];
+  if (!changesState[sessionId]) changesState[sessionId] = [];
+}
+
 function getSessionDetail(id: string): SessionDetail | undefined {
-  const session = MOCK_SESSIONS.find((s) => s.id === id);
+  const session = sessionsState.find((s) => s.id === id);
   if (!session) return undefined;
+  ensureSessionChildren(id);
   return {
     ...session,
-    snapshots: MOCK_SNAPSHOTS[id] ?? [],
-    changes: MOCK_CHANGES[id] ?? [],
+    snapshots: snapshotsState[id] ?? [],
+    changes: changesState[id] ?? [],
   };
 }
 
 export const sessionHandlers = [
   // GET /api/v1/sessions
   http.get(`${BASE}/sessions`, () => {
-    return HttpResponse.json(MOCK_SESSIONS);
+    return HttpResponse.json(sessionsState);
   }),
 
   // POST /api/v1/sessions
@@ -161,9 +197,12 @@ export const sessionHandlers = [
       tire_rear: body.tire_rear ?? null,
       rider_feedback: body.rider_feedback ?? null,
       voice_note_url: body.voice_note_url ?? null,
+      ride_metrics: body.ride_metrics ?? null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
+    sessionsState.push(newSession);
+    ensureSessionChildren(newSession.id);
     return HttpResponse.json(newSession, { status: 201 });
   }),
 
@@ -181,8 +220,9 @@ export const sessionHandlers = [
 
   // PATCH /api/v1/sessions/:id
   http.patch(`${BASE}/sessions/:id`, async ({ params, request }) => {
-    const session = MOCK_SESSIONS.find((s) => s.id === params.id);
-    if (!session) {
+    const id = params.id as string;
+    const idx = sessionsState.findIndex((s) => s.id === id);
+    if (idx === -1) {
       return HttpResponse.json(
         { error: 'Session not found', code: 'NOT_FOUND' },
         { status: 404 },
@@ -190,43 +230,63 @@ export const sessionHandlers = [
     }
     const body = (await request.json()) as Record<string, unknown>;
     const updated: Session = {
-      ...session,
+      ...sessionsState[idx],
       ...body,
       updated_at: new Date().toISOString(),
     } as Session;
+    sessionsState[idx] = updated;
     return HttpResponse.json(updated);
   }),
 
   // POST /api/v1/sessions/:id/snapshot
   http.post(`${BASE}/sessions/:id/snapshot`, async ({ params, request }) => {
+    const id = params.id as string;
+    if (!sessionsState.some((s) => s.id === id)) {
+      return HttpResponse.json(
+        { error: 'Session not found', code: 'NOT_FOUND' },
+        { status: 404 },
+      );
+    }
     const body = (await request.json()) as CreateSnapshotRequest;
     const snapshot: SetupSnapshot = {
       id: `snap-${Date.now()}`,
-      session_id: params.id as string,
+      session_id: id,
       settings: body.settings,
       created_at: new Date().toISOString(),
     };
+    ensureSessionChildren(id);
+    snapshotsState[id].push(snapshot);
     return HttpResponse.json(snapshot, { status: 201 });
   }),
 
   // POST /api/v1/sessions/:id/changes
   http.post(`${BASE}/sessions/:id/changes`, async ({ params, request }) => {
+    const id = params.id as string;
+    if (!sessionsState.some((s) => s.id === id)) {
+      return HttpResponse.json(
+        { error: 'Session not found', code: 'NOT_FOUND' },
+        { status: 404 },
+      );
+    }
     const body = (await request.json()) as CreateChangeRequest;
     const change: ChangeLog = {
       id: `change-${Date.now()}`,
-      session_id: params.id as string,
+      session_id: id,
       parameter: body.parameter,
       from_value: body.from_value ?? null,
       to_value: body.to_value,
       rationale: body.rationale ?? null,
       applied_at: body.applied_at ?? new Date().toISOString(),
     };
+    ensureSessionChildren(id);
+    changesState[id].push(change);
     return HttpResponse.json(change, { status: 201 });
   }),
 
   // GET /api/v1/sessions/:id/changes
   http.get(`${BASE}/sessions/:id/changes`, ({ params }) => {
-    const changes = MOCK_CHANGES[params.id as string] ?? [];
-    return HttpResponse.json(changes);
+    const id = params.id as string;
+    ensureSessionChildren(id);
+    return HttpResponse.json(changesState[id] ?? []);
   }),
 ];
