@@ -16,6 +16,7 @@ const mockUser: UserProfile = {
 describe('authStore', () => {
   beforeEach(() => {
     useAuthStore.getState().logout();
+    useUiStore.setState({ riderType: 'street', sidebarOpen: false });
   });
 
   it('starts with no token or user', () => {
@@ -33,6 +34,12 @@ describe('authStore', () => {
     expect(state.user).toEqual(mockUser);
   });
 
+  it('login syncs uiStore riderType from profile for nav visibility', () => {
+    expect(useUiStore.getState().riderType).toBe('street');
+    useAuthStore.getState().login('access-token', 'refresh-token', mockUser);
+    expect(useUiStore.getState().riderType).toBe('casual_track');
+  });
+
   it('logout clears all auth state', () => {
     useAuthStore.getState().login('access-token', 'refresh-token', mockUser);
     useAuthStore.getState().logout();
@@ -40,6 +47,7 @@ describe('authStore', () => {
     expect(state.token).toBeNull();
     expect(state.refreshToken).toBeNull();
     expect(state.user).toBeNull();
+    expect(useUiStore.getState().riderType).toBe('street');
   });
 
   it('setUser updates only the user', () => {
@@ -49,6 +57,13 @@ describe('authStore', () => {
     const state = useAuthStore.getState();
     expect(state.user?.display_name).toBe('Updated Name');
     expect(state.token).toBe('access-token');
+  });
+
+  it('setUser syncs uiStore when rider_type changes', () => {
+    useAuthStore.getState().login('access-token', 'refresh-token', mockUser);
+    expect(useUiStore.getState().riderType).toBe('casual_track');
+    useAuthStore.getState().setUser({ ...mockUser, rider_type: 'competitive' });
+    expect(useUiStore.getState().riderType).toBe('competitive');
   });
 
   it('setToken updates only the token', () => {

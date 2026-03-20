@@ -9,5 +9,8 @@
     "test": "npm run test --prefix frontend",
     "preview": "npm run preview --prefix frontend",
     "install:frontend": "npm install --prefix frontend"
+  },
+  "dependencies": {
+    "vite": "^8.0.1"
   }
 }

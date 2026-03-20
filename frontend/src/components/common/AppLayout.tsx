@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Outlet, Link, useLocation, useNavigate } from 'react-router-dom';
 import { useUiStore, type NavItem } from '@/stores/uiStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -25,6 +26,11 @@ export function AppLayout() {
   const location = useLocation();
   const navigate = useNavigate();
   const logout = useAuthStore((s) => s.logout);
+
+  /** Close mobile drawer on route change (back/forward, bottom nav, etc.). Desktop uses md:translate-x-0 so layout is unchanged. */
+  useEffect(() => {
+    useUiStore.getState().setSidebarOpen(false);
+  }, [location.pathname]);
 
   function handleLogout() {
     logout();
@@ -64,7 +70,7 @@ export function AppLayout() {
         <aside
           className={`
             fixed inset-y-0 left-0 z-30 w-56 bg-white border-r border-gray-200
-            transform transition-transform duration-200 ease-in-out relative
+            transform transition-transform duration-200 ease-in-out
             md:relative md:translate-x-0
             ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           `}
@@ -138,6 +144,7 @@ export function AppLayout() {
             <Link
               key={entry.item}
               to={entry.path}
+              onClick={() => useUiStore.getState().setSidebarOpen(false)}
               className={`
                 flex flex-col items-center px-2 py-1 text-xs min-w-[44px] min-h-[44px] justify-center
                 ${isActive ? 'text-blue-800' : 'text-gray-500'}
