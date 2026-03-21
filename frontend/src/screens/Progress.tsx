@@ -76,8 +76,12 @@ export default function Progress() {
   }
 
   const hasData = sessions.length > 0;
-  const totalTimeFoundS = progress?.total_time_found_ms != null
-    ? (progress.total_time_found_ms / 1000).toFixed(1)
+  const totalTimeFoundRaw = progress?.total_time_found_ms != null
+    ? progress.total_time_found_ms
+    : null;
+  // Show actual value only when meaningful (non-zero or 2+ sessions)
+  const totalTimeFoundS = totalTimeFoundRaw != null && (totalTimeFoundRaw !== 0 || sessions.length >= 2)
+    ? (totalTimeFoundRaw / 1000).toFixed(1)
     : null;
 
   // Chart component (shared between mobile and desktop)
@@ -151,6 +155,9 @@ export default function Progress() {
             <section className="rounded-lg border border-border-subtle bg-background-surface p-4">
               <h3 className="mb-4 text-sm font-medium text-foreground-secondary">Lap Time Trend</h3>
               <LapTimeTrendChart />
+              {sessions.length === 1 && (
+                <p className="mt-4 text-center text-sm text-foreground-muted">Add more sessions to see trends</p>
+              )}
               {totalTimeFoundS && (
                 <div className="mt-4 flex items-center justify-between rounded-lg bg-background-elevated px-3 py-2 text-sm">
                   <span className="text-foreground-secondary">Time found</span>
@@ -170,16 +177,16 @@ export default function Progress() {
                 <span className="flex items-center justify-center gap-1">
                   {totalTimeFoundS && <TrendingDown className="h-4 w-4 text-accent-green" />}
                   <span className="font-mono text-2xl font-semibold tabular-nums text-accent-green">
-                    {totalTimeFoundS ? `${totalTimeFoundS}s` : '--'}
+                    {totalTimeFoundS ? `${totalTimeFoundS}s` : '—'}
                   </span>
                 </span>
                 <span className="text-xs text-foreground-muted">Time found</span>
               </div>
               <div className="rounded-lg border border-border-subtle bg-background-surface p-3 text-center">
                 <span className="block font-mono text-2xl font-semibold tabular-nums text-foreground">
-                  {efficacy?.adoption_rate != null
+                  {efficacy?.adoption_rate != null && efficacy.adoption_rate > 0
                     ? `${Math.round(efficacy.adoption_rate * 100)}%`
-                    : '--'}
+                    : '—'}
                 </span>
                 <span className="text-xs text-foreground-muted">Applied</span>
               </div>
@@ -246,7 +253,7 @@ export default function Progress() {
           <div className="flex items-center gap-3">
             <h1 className="text-sm font-semibold text-foreground">Progress</h1>
           </div>
-          {totalTimeFoundS && (
+          {totalTimeFoundS != null && (
             <div className="flex items-center gap-2 text-sm text-foreground-secondary">
               <TrendingDown className="h-4 w-4 text-accent-green" />
               <span>{totalTimeFoundS}s found</span>
@@ -268,10 +275,10 @@ export default function Progress() {
               {/* Stat cards row */}
               <div className="grid grid-cols-4 gap-4">
                 {[
-                  { label: 'Sessions', value: String(history?.sessions?.length ?? '--'), color: '' },
-                  { label: 'Time Found', value: totalTimeFoundS ? `${totalTimeFoundS}s` : '--', color: 'text-accent-green' },
-                  { label: 'Best Lap', value: progress?.best_laps_by_track?.[0] ? formatLapTime(progress.best_laps_by_track[0].best_lap_ms) : '--', color: '' },
-                  { label: 'Adoption', value: efficacy?.adoption_rate != null ? `${Math.round(efficacy.adoption_rate * 100)}%` : '--', color: '' },
+                  { label: 'Sessions', value: String(history?.sessions?.length ?? '—'), color: '' },
+                  { label: 'Time Found', value: totalTimeFoundS ? `${totalTimeFoundS}s` : '—', color: 'text-accent-green' },
+                  { label: 'Best Lap', value: progress?.best_laps_by_track?.[0] ? formatLapTime(progress.best_laps_by_track[0].best_lap_ms) : '—', color: '' },
+                  { label: 'Adoption', value: efficacy?.adoption_rate != null && efficacy.adoption_rate > 0 ? `${Math.round(efficacy.adoption_rate * 100)}%` : '—', color: '' },
                 ].map((stat) => (
                   <div key={stat.label} className="rounded-lg border border-border-subtle bg-background-surface p-4">
                     <p className="text-[11px] font-medium uppercase tracking-wider text-foreground-muted mb-1">{stat.label}</p>
@@ -288,6 +295,9 @@ export default function Progress() {
                   <h3 className="text-sm font-semibold text-foreground">Lap Time Trend</h3>
                 </div>
                 <LapTimeTrendChart />
+                {sessions.length === 1 && (
+                  <p className="mt-3 text-center text-sm text-foreground-muted">Add more sessions to see trends</p>
+                )}
                 {totalTimeFoundS && (
                   <div className="mt-3 flex items-center justify-between rounded-lg bg-background-elevated px-3 py-2 text-sm">
                     <span className="text-foreground-secondary">Total time found</span>

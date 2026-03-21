@@ -7,6 +7,7 @@ import { LoadingSkeleton } from '@/components/common/LoadingSkeleton'
 import { ErrorState } from '@/components/common/ErrorState'
 import { Modal } from '@/components/common/Modal'
 import { Button } from '@/components/ui/button'
+import { cn } from '@/lib/utils'
 import type { CreateBikeRequest } from '@/api/types'
 
 const INITIAL_FORM: CreateBikeRequest = {
@@ -83,10 +84,13 @@ export default function Garage() {
       </div>
 
       {bikes && bikes.length > 0 ? (
-        <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 xl:grid-cols-3" data-testid="bike-grid">
+        <div className={cn(
+          'flex flex-col gap-3 lg:grid',
+          bikeCount === 1 ? 'lg:grid-cols-1 lg:max-w-2xl' : 'lg:grid-cols-2 xl:grid-cols-3'
+        )} data-testid="bike-grid">
           {bikes.map((bike) => (
             <Link key={bike.id} to={`/bikes/${bike.id}`}>
-              <div className="group relative flex items-center gap-4 rounded-lg border border-border-subtle bg-background-surface p-4 transition-colors hover:border-border active:bg-background-elevated">
+              <div className="group relative flex items-center gap-4 rounded-lg border border-border-subtle bg-background-surface p-4 lg:p-5 transition-colors hover:border-border active:bg-background-elevated">
                 <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-background-elevated">
                   <Wrench className="h-6 w-6 text-foreground-muted" />
                 </div>

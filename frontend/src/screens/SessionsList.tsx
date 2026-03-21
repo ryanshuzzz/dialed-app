@@ -2,6 +2,9 @@ import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Plus, Timer, TrendingDown, Sparkles } from 'lucide-react'
 import { useSessions, useSession, useChangeLog } from '@/hooks/useSessions'
+import { useSuggestions } from '@/hooks/useSuggestions'
+import { useEvent } from '@/hooks/useEvents'
+import { useTrack } from '@/hooks/useTracks'
 import { useBikes } from '@/hooks/useBikes'
 import { useEvents } from '@/hooks/useEvents'
 import { useTracks } from '@/hooks/useTracks'
@@ -21,6 +24,7 @@ function formatLapTime(ms: number): string {
 function DesktopDetailPanel({ sessionId }: { sessionId: string }) {
   const { data: session, isLoading } = useSession(sessionId)
   const { data: changeLog } = useChangeLog(sessionId)
+  const { data: suggestions } = useSuggestions(sessionId)
   const [activeTab, setActiveTab] = useState<'overview' | 'suggestion' | 'changes'>('overview')
 
   if (isLoading || !session) {
@@ -31,12 +35,19 @@ function DesktopDetailPanel({ sessionId }: { sessionId: string }) {
     )
   }
 
+  // Resolve track name via event
+  const { data: event } = useEvent(session?.event_id)
+  const { data: track } = useTrack(event?.track_id ?? undefined)
+  const trackLabel = track ? (track.config ? `${track.name} ${track.config}` : track.name) : null
+
   const bestLap = session.csv_best_lap_ms ?? session.manual_best_lap_ms
   const sessionType = session.session_type
   const snapshot = session.snapshots?.[0]?.settings
   const front = snapshot?.front
   const rear = snapshot?.rear
   const changes = changeLog ?? session.changes ?? []
+  const suggestionsCount = suggestions?.length ?? 0
+  const changesCount = changes.length
 
   const typeStyles: Record<string, string> = {
     qualifying: 'border-accent-yellow/30 bg-accent-yellow/10 text-accent-yellow',
@@ -47,9 +58,9 @@ function DesktopDetailPanel({ sessionId }: { sessionId: string }) {
   const typeStyle = typeStyles[sessionType] ?? typeStyles.trackday
 
   const tabs = [
-    { value: 'overview' as const, label: 'Overview' },
-    { value: 'suggestion' as const, label: 'AI Suggestions' },
-    { value: 'changes' as const, label: 'Changes' },
+    { value: 'overview' as const, label: 'Overview', count: null as number | null },
+    { value: 'suggestion' as const, label: 'AI Suggestions', count: suggestionsCount },
+    { value: 'changes' as const, label: 'Setup Changes', count: changesCount },
   ]
 
   return (
@@ -65,11 +76,39 @@ function DesktopDetailPanel({ sessionId }: { sessionId: string }) {
               {new Date(session.created_at).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
             </span>
           </div>
+          {trackLabel && (
+            <p className="mt-0.5 text-sm font-medium text-foreground">{trackLabel}</p>
+          )}
           <div className="mt-1 flex items-baseline gap-3">
             <span className="font-mono text-2xl font-semibold tabular-nums text-foreground">
               {bestLap != null ? formatLapTime(bestLap) : '--:--.---'}
             </span>
           </div>
+          {/* Conditions pills */}
+          {event?.conditions && (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              {event.conditions.condition && (
+                <span className="rounded-full border border-border-subtle bg-background-elevated px-2 py-0.5 text-[10px] font-medium uppercase text-foreground-secondary">
+                  {event.conditions.condition}
+                </span>
+              )}
+              {event.conditions.temp_c != null && (
+                <span className="rounded-full border border-border-subtle bg-background-elevated px-2 py-0.5 text-[10px] font-medium text-foreground-secondary">
+                  {event.conditions.temp_c}°C air
+                </span>
+              )}
+              {event.conditions.track_temp_c != null && (
+                <span className="rounded-full border border-border-subtle bg-background-elevated px-2 py-0.5 text-[10px] font-medium text-foreground-secondary">
+                  {event.conditions.track_temp_c}°C track
+                </span>
+              )}
+              {event.conditions.humidity_pct != null && (
+                <span className="rounded-full border border-border-subtle bg-background-elevated px-2 py-0.5 text-[10px] font-medium text-foreground-secondary">
+                  {event.conditions.humidity_pct}% humidity
+                </span>
+              )}
+            </div>
+          )}
         </div>
         <Link to={`/sessions/${sessionId}`}>
           <Button variant="outline" className="h-8 gap-1.5 border-border text-sm text-foreground hover:bg-background-elevated">
@@ -80,23 +119,38 @@ function DesktopDetailPanel({ sessionId }: { sessionId: string }) {
 
       {/* Tabs */}
       <div className="flex shrink-0 border-b border-border-subtle bg-background px-6">
-        {tabs.map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => setActiveTab(tab.value)}
-            className={cn(
-              'relative py-3 px-1 mr-6 text-sm font-medium transition-colors',
-              activeTab === tab.value
-                ? 'text-accent-orange'
-                : 'text-foreground-muted hover:text-foreground-secondary'
-            )}
-          >
-            {tab.label}
-            {activeTab === tab.value && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent-orange" />
-            )}
-          </button>
-        ))}
+        {tabs.map((tab) => {
+          const isEmpty = tab.count !== null && tab.count === 0
+          return (
+            <button
+              key={tab.value}
+              onClick={() => setActiveTab(tab.value)}
+              className={cn(
+                'relative py-3 px-1 mr-6 text-sm font-medium transition-colors',
+                activeTab === tab.value
+                  ? 'text-accent-orange'
+                  : isEmpty
+                    ? 'text-foreground-muted/50 hover:text-foreground-muted'
+                    : 'text-foreground-muted hover:text-foreground-secondary'
+              )}
+            >
+              {tab.label}
+              {tab.count !== null && (
+                <span className={cn(
+                  'ml-1.5 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-mono leading-none',
+                  isEmpty
+                    ? 'bg-background-elevated text-foreground-muted/50'
+                    : 'bg-accent-orange/15 text-accent-orange'
+                )}>
+                  {tab.count}
+                </span>
+              )}
+              {activeTab === tab.value && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent-orange" />
+              )}
+            </button>
+          )
+        })}
       </div>
 
       {/* Tab content */}
@@ -182,17 +236,73 @@ function DesktopDetailPanel({ sessionId }: { sessionId: string }) {
                 ) : (
                   <p className="text-sm text-foreground-muted italic">No feedback recorded</p>
                 )}
-
-                {/* Tires */}
-                {session.tire_front?.compound && session.tire_rear?.compound && (
-                  <div className="mt-3 border-t border-border-subtle pt-3">
-                    <p className="text-xs text-foreground-muted">
-                      {session.tire_front.compound} front / {session.tire_rear.compound} rear
-                    </p>
-                  </div>
-                )}
               </div>
             </div>
+
+            {/* Tire Info */}
+            {(session.tire_front || session.tire_rear) && (
+              <div className="rounded-lg border border-border-subtle bg-background-surface p-4">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-foreground-muted">Tires</h3>
+                <div className="flex flex-wrap gap-2">
+                  {session.tire_front?.compound && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-accent-blue/30 bg-accent-blue/10 px-3 py-1 text-xs font-medium text-accent-blue">
+                      <span className="text-[10px] text-accent-blue/70">F</span>
+                      {session.tire_front.compound}
+                      {session.tire_front.pressure_kpa != null && (
+                        <span className="text-accent-blue/70">{session.tire_front.pressure_kpa} kPa</span>
+                      )}
+                    </span>
+                  )}
+                  {session.tire_rear?.compound && (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-accent-orange/30 bg-accent-orange/10 px-3 py-1 text-xs font-medium text-accent-orange">
+                      <span className="text-[10px] text-accent-orange/70">R</span>
+                      {session.tire_rear.compound}
+                      {session.tire_rear.pressure_kpa != null && (
+                        <span className="text-accent-orange/70">{session.tire_rear.pressure_kpa} kPa</span>
+                      )}
+                    </span>
+                  )}
+                  {session.tire_front?.laps != null && (
+                    <span className="rounded-full border border-border-subtle bg-background-elevated px-2 py-0.5 text-[10px] text-foreground-muted">
+                      F: {session.tire_front.laps} laps
+                    </span>
+                  )}
+                  {session.tire_rear?.laps != null && (
+                    <span className="rounded-full border border-border-subtle bg-background-elevated px-2 py-0.5 text-[10px] text-foreground-muted">
+                      R: {session.tire_rear.laps} laps
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Compact Change Log */}
+            {changes.length > 0 && (
+              <div className="rounded-lg border border-border-subtle bg-background-surface p-4">
+                <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-foreground-muted">Setup Changes</h3>
+                <div className="flex flex-col gap-2">
+                  {changes.map((change) => (
+                    <div key={change.id} className="flex items-start gap-2">
+                      <div className="mt-1.5 h-2 w-2 shrink-0 rounded-full bg-accent-orange" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="font-medium text-foreground">{change.parameter}</span>
+                          <span className="font-mono text-xs tabular-nums text-foreground-secondary">
+                            {change.from_value ?? '?'} → {change.to_value}
+                          </span>
+                          <span className="ml-auto text-[10px] text-foreground-muted shrink-0">
+                            {new Date(change.applied_at).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        {change.rationale && (
+                          <p className="text-xs text-foreground-muted mt-0.5 truncate">{change.rationale}</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

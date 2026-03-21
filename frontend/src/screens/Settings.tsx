@@ -140,8 +140,10 @@ export default function Settings() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-[480px] px-4 py-6">
-        <div className="flex flex-col gap-6">
+      <main className="mx-auto max-w-[480px] px-4 py-6 lg:max-w-5xl">
+        <div className="flex flex-col gap-6 lg:grid lg:grid-cols-2 lg:gap-8">
+          {/* Left column wrapper for desktop */}
+          <div className="flex flex-col gap-6">
           {/* Profile Section */}
           <section>
             <h2 className="mb-2 text-xs font-medium uppercase tracking-wider text-foreground-muted">
@@ -318,6 +320,9 @@ export default function Settings() {
             )}
           </section>
 
+          </div>{/* end left column */}
+          {/* Right column wrapper for desktop */}
+          <div className="flex flex-col gap-6">
           {/* Advanced Section */}
           <section>
             <h2 className="mb-2 text-xs font-medium uppercase tracking-wider text-foreground-muted">
@@ -503,8 +508,9 @@ export default function Settings() {
             </div>
           </section>
 
+          </div>{/* end right column */}
           {/* Sign Out */}
-          <section>
+          <section className="lg:col-span-2">
             <button
               onClick={() => {
                 logout();

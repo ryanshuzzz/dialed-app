@@ -13,6 +13,8 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSession, useChangeLog } from '@/hooks/useSessions'
+import { useEvent } from '@/hooks/useEvents'
+import { useTrack } from '@/hooks/useTracks'
 import {
   useSuggestions,
   useSuggestion,
@@ -135,6 +137,11 @@ export default function SessionDetail() {
   const { data: session, isLoading, error, refetch } = useSession(id)
   const { data: changeLog } = useChangeLog(id)
 
+  // Track resolution via event
+  const { data: sessionEvent } = useEvent(session?.event_id)
+  const { data: sessionTrack } = useTrack(sessionEvent?.track_id ?? undefined)
+  const trackLabel = sessionTrack ? (sessionTrack.config ? `${sessionTrack.name} ${sessionTrack.config}` : sessionTrack.name) : null
+
   // Suggestion state
   const { data: suggestions } = useSuggestions(id)
   const [activeSuggestionId, setActiveSuggestionId] = useState<string | undefined>(undefined)
@@ -237,11 +244,14 @@ export default function SessionDetail() {
   void channelSummary
   void handleModify
 
-  const tabs: { value: TabType; label: string }[] = [
-    { value: 'overview', label: 'Overview' },
-    { value: 'telemetry', label: 'Telemetry' },
-    { value: 'suggestion', label: 'Suggestion' },
-    { value: 'changes', label: 'Changes' },
+  const suggestionsCount = suggestions?.length ?? 0
+  const changesCount = (changeLog ?? session?.changes ?? []).length
+
+  const tabs: { value: TabType; label: string; count: number | null }[] = [
+    { value: 'overview', label: 'Overview', count: null },
+    { value: 'telemetry', label: 'Telemetry', count: null },
+    { value: 'suggestion', label: 'AI Suggestions', count: suggestionsCount },
+    { value: 'changes', label: 'Setup Changes', count: changesCount },
   ]
 
   if (isLoading) {
@@ -318,6 +328,9 @@ export default function SessionDetail() {
               })}
             </span>
           </div>
+          {trackLabel && (
+            <p className="mt-1 text-sm font-medium text-foreground-secondary">{trackLabel}</p>
+          )}
           <div className="mt-2 flex items-baseline gap-3">
             <span className="font-mono text-3xl font-semibold tabular-nums text-foreground" data-testid="best-lap">
               {bestLap != null ? formatLapTime(bestLap) : '--:--.---'}
@@ -332,23 +345,38 @@ export default function SessionDetail() {
 
       {/* Tabs */}
       <div className="mb-6 flex border-b border-border-subtle">
-        {tabs.map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => setActiveTab(tab.value)}
-            className={cn(
-              'relative flex-1 py-3 text-center text-sm font-medium transition-colors',
-              activeTab === tab.value
-                ? 'text-accent-orange'
-                : 'text-foreground-muted hover:text-foreground-secondary',
-            )}
-          >
-            {tab.label}
-            {activeTab === tab.value && (
-              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent-orange" />
-            )}
-          </button>
-        ))}
+        {tabs.map((tab) => {
+          const isEmpty = tab.count !== null && tab.count === 0
+          return (
+            <button
+              key={tab.value}
+              onClick={() => setActiveTab(tab.value)}
+              className={cn(
+                'relative flex-1 py-3 text-center text-sm font-medium transition-colors',
+                activeTab === tab.value
+                  ? 'text-accent-orange'
+                  : isEmpty
+                    ? 'text-foreground-muted/50 hover:text-foreground-muted'
+                    : 'text-foreground-muted hover:text-foreground-secondary',
+              )}
+            >
+              {tab.label}
+              {tab.count !== null && (
+                <span className={cn(
+                  'ml-1 inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-mono leading-none',
+                  isEmpty
+                    ? 'bg-background-elevated text-foreground-muted/50'
+                    : 'bg-accent-orange/15 text-accent-orange'
+                )}>
+                  {tab.count}
+                </span>
+              )}
+              {activeTab === tab.value && (
+                <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent-orange" />
+              )}
+            </button>
+          )
+        })}
       </div>
 
       {/* Overview Tab */}

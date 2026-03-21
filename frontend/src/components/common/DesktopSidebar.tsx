@@ -1,30 +1,29 @@
 import { Link, useLocation } from 'react-router-dom'
-import { Car, Flag, TrendingUp, Sparkles, Settings } from 'lucide-react'
+import { Car, Flag, TrendingUp, Sparkles, Settings, Calendar, MapPin } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { useUiStore, type NavItem } from '@/stores/uiStore'
 import { useBikes } from '@/hooks/useBikes'
 
 interface NavItemDef {
   href: string
   icon: typeof Car
   label: string
-  navItem: NavItem
 }
 
 const navItems: NavItemDef[] = [
-  { href: '/', icon: Flag, label: 'Sessions', navItem: 'sessions' },
-  { href: '/garage', icon: Car, label: 'Garage', navItem: 'garage' },
-  { href: '/progress', icon: TrendingUp, label: 'Progress', navItem: 'progress' },
-  { href: '/ai', icon: Sparkles, label: 'AI', navItem: 'ai' },
-  { href: '/settings', icon: Settings, label: 'Settings', navItem: 'settings' },
+  { href: '/', icon: Flag, label: 'Sessions' },
+  { href: '/garage', icon: Car, label: 'Garage' },
+  { href: '/events', icon: Calendar, label: 'Events' },
+  { href: '/tracks', icon: MapPin, label: 'Tracks' },
+  { href: '/progress', icon: TrendingUp, label: 'Progress' },
+  { href: '/ai', icon: Sparkles, label: 'AI' },
+  { href: '/settings', icon: Settings, label: 'Settings' },
 ]
 
 export function DesktopSidebar() {
   const location = useLocation()
-  const isNavVisible = useUiStore((s) => s.isNavVisible)
   const { data: bikes } = useBikes()
 
-  const visibleItems = navItems.filter((item) => isNavVisible(item.navItem))
+  const visibleItems = navItems
   const activeBike = bikes?.[0]
   const bikeName = activeBike
     ? `${activeBike.year ? `${activeBike.year} ` : ''}${activeBike.make} ${activeBike.model}`
