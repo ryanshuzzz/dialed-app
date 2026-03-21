@@ -34,7 +34,7 @@ export function AppLayout() {
       </header>
 
       {/* Main content area — add left padding on desktop for sidebar */}
-      <main className="mx-auto max-w-[480px] px-4 pb-24 pt-4 lg:ml-[220px] lg:mr-0 lg:max-w-none lg:px-6 lg:pb-6">
+      <main className="mx-auto max-w-[480px] px-4 pb-24 pt-4 lg:max-w-none lg:pl-[calc(220px+1.5rem)] lg:pr-6 lg:pb-6">
         <Outlet />
       </main>
 

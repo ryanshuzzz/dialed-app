@@ -290,7 +290,7 @@ export default function SessionDetail() {
     : mockSessionData.laps
 
   return (
-    <div className="pb-24" data-testid="session-detail">
+    <div className="pb-24 lg:pb-8 lg:max-w-4xl" data-testid="session-detail">
       {/* Header */}
       <div className="mb-2 flex items-start gap-3">
         <Link
@@ -354,6 +354,8 @@ export default function SessionDetail() {
       {/* Overview Tab */}
       {activeTab === 'overview' && (
         <div className="flex flex-col gap-6">
+          {/* Setup + Feedback — side by side on desktop */}
+          <div className="flex flex-col gap-6 lg:grid lg:grid-cols-2 lg:gap-4">
           {/* Setup Snapshot */}
           {(front || rear) && (
           <section className="rounded-lg border border-border-subtle bg-background-surface p-4">
@@ -454,15 +456,6 @@ export default function SessionDetail() {
           </section>
           )}
 
-          {/* Conditions */}
-          <div className="flex flex-wrap gap-2">
-            {session.tire_front?.compound && session.tire_rear?.compound && (
-            <span className="rounded-full border border-border-subtle bg-background-surface px-3 py-1 text-xs text-foreground-secondary">
-              {session.tire_front.compound} front / {session.tire_rear.compound} rear
-            </span>
-            )}
-          </div>
-
           {/* Rider Feedback */}
           <section className="rounded-lg border border-border-subtle bg-background-surface p-4">
             <h3 className="mb-3 text-sm font-medium text-foreground-secondary">
@@ -483,14 +476,14 @@ export default function SessionDetail() {
             </div>
             <blockquote
               className="border-l-2 border-border pl-4 text-sm italic text-foreground-secondary"
-              data-testid="rider-feedback"
             >
               {session.rider_feedback ?? mockSessionData.feedback.text}
             </blockquote>
           </section>
+          </div>
 
-          {/* Quick Stats */}
-          <section className="grid grid-cols-3 gap-3">
+          {/* Quick Stats — wider grid on desktop */}
+          <section className="grid grid-cols-3 gap-3 lg:grid-cols-4">
             <div className="rounded-lg border border-border-subtle bg-background-surface p-3 text-center">
               <span className="block font-mono text-lg font-semibold tabular-nums text-foreground">
                 {mockSessionData.stats.maxSpeed}

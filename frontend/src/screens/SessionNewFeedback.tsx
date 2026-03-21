@@ -835,7 +835,7 @@ export default function SessionNewFeedback() {
       )}
 
       {/* Footer */}
-      <div className="fixed bottom-0 left-0 right-0 border-t border-border-subtle bg-background-surface safe-area-bottom">
+      <div className="fixed bottom-0 left-0 right-0 border-t border-border-subtle bg-background-surface safe-area-bottom lg:hidden">
         <div className="mx-auto max-w-[480px] px-4 py-4">
           {saveError && (
             <div className="mb-3 rounded-lg border border-accent-red/30 bg-accent-red/10 px-4 py-3 text-sm text-accent-red">

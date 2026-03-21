@@ -83,7 +83,7 @@ export default function Garage() {
       </div>
 
       {bikes && bikes.length > 0 ? (
-        <div className="flex flex-col gap-3" data-testid="bike-grid">
+        <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 xl:grid-cols-3" data-testid="bike-grid">
           {bikes.map((bike) => (
             <Link key={bike.id} to={`/bikes/${bike.id}`}>
               <div className="group relative flex items-center gap-4 rounded-lg border border-border-subtle bg-background-surface p-4 transition-colors hover:border-border active:bg-background-elevated">

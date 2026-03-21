@@ -275,7 +275,7 @@ export default function SessionNewSuspension() {
       </div>
 
       {/* Footer */}
-      <div className="fixed bottom-0 left-0 right-0 border-t border-border-subtle bg-background-surface safe-area-bottom">
+      <div className="fixed bottom-0 left-0 right-0 border-t border-border-subtle bg-background-surface safe-area-bottom lg:hidden">
         <div className="mx-auto flex max-w-[480px] flex-col gap-2 px-4 py-4">
           <Button
             onClick={() => navigate('/sessions/new/feedback')}
