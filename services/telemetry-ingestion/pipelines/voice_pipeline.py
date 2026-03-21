@@ -222,6 +222,11 @@ def _resolve_parameter(raw_param: str) -> str | None:
         if canonical:
             return canonical
 
+    # Keyword fallback: check if any alias key appears as a substring.
+    for alias, canonical in _PARAMETER_ALIASES.items():
+        if alias in cleaned or cleaned in alias:
+            return canonical
+
     return None
 
 
@@ -271,6 +276,23 @@ def _extract_setting_mentions(transcript: str) -> list[SettingMention]:
                     action="set",
                 )
             )
+
+    # Fallback: keyword scan for unmatched setting references.
+    # Catches phrases like "compression is really stiff" without a numeric value.
+    if not mentions:
+        lower = transcript.lower()
+        for alias, canonical in _PARAMETER_ALIASES.items():
+            if alias in lower:
+                key = f"{canonical}:mentioned:noted"
+                if key not in seen:
+                    seen.add(key)
+                    mentions.append(
+                        SettingMention(
+                            parameter=canonical,
+                            value="mentioned",
+                            action="noted",
+                        )
+                    )
 
     return mentions
 

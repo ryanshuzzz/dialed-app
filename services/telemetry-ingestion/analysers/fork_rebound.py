@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dialed_shared.logging import setup_logger
@@ -20,6 +20,24 @@ from models.lap_segment import LapSegment
 from models.telemetry_point import TelemetryPoint
 
 logger = setup_logger("telemetry-ingestion")
+
+
+async def _channel_has_data(
+    session: AsyncSession,
+    session_id: str,
+    col_name: str,
+) -> bool:
+    """Return True if the named core column has at least one non-NULL value."""
+    col = getattr(TelemetryPoint, col_name)
+    row = await session.execute(
+        select(col)
+        .where(
+            TelemetryPoint.session_id == session_id,
+            col.isnot(None),
+        )
+        .limit(1)
+    )
+    return row.scalar_one_or_none() is not None
 
 # Minimum fork movement in mm to register as a compression/rebound event.
 _MIN_TRAVEL_MM = 2.0
@@ -68,20 +86,37 @@ async def analyse_fork(
     global_max_compression = 0.0
     per_lap: list[dict[str, Any]] = []
 
+    # Determine whether fork_position lives in the named column or extra_channels.
+    sid_str = str(session_id)
+    use_extra_fork = not await _channel_has_data(session, sid_str, "fork_position")
+
     for lap in laps:
         lap_start = base_time + timedelta(milliseconds=lap.start_time_ms)
         lap_end = base_time + timedelta(milliseconds=lap.end_time_ms)
 
-        rows = await session.execute(
-            select(TelemetryPoint.time, TelemetryPoint.fork_position)
-            .where(
-                TelemetryPoint.session_id == str(session_id),
-                TelemetryPoint.time >= lap_start,
-                TelemetryPoint.time < lap_end,
+        if use_extra_fork:
+            raw_rows = await session.execute(
+                text(
+                    "SELECT time, "
+                    "  (extra_channels->>'fork_position')::double precision AS fork_position "
+                    "FROM telemetry.telemetry_points "
+                    "WHERE session_id = :sid AND time >= :start AND time < :end "
+                    "ORDER BY time"
+                ),
+                {"sid": sid_str, "start": lap_start, "end": lap_end},
             )
-            .order_by(TelemetryPoint.time)
-        )
-        points = rows.all()
+            points = raw_rows.all()
+        else:
+            rows = await session.execute(
+                select(TelemetryPoint.time, TelemetryPoint.fork_position)
+                .where(
+                    TelemetryPoint.session_id == sid_str,
+                    TelemetryPoint.time >= lap_start,
+                    TelemetryPoint.time < lap_end,
+                )
+                .order_by(TelemetryPoint.time)
+            )
+            points = rows.all()
 
         if len(points) < 2:
             continue

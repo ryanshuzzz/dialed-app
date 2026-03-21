@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from dialed_shared.logging import setup_logger
@@ -19,6 +19,24 @@ from models.lap_segment import LapSegment
 from models.telemetry_point import TelemetryPoint
 
 logger = setup_logger("telemetry-ingestion")
+
+
+async def _channel_has_data(
+    session: AsyncSession,
+    session_id: str,
+    col_name: str,
+) -> bool:
+    """Return True if the named core column has at least one non-NULL value."""
+    col = getattr(TelemetryPoint, col_name)
+    row = await session.execute(
+        select(col)
+        .where(
+            TelemetryPoint.session_id == session_id,
+            col.isnot(None),
+        )
+        .limit(1)
+    )
+    return row.scalar_one_or_none() is not None
 
 # Minimum RPM drop per sample to trigger a TCS event candidate.
 _RPM_DROP_THRESHOLD = 300.0
@@ -66,24 +84,53 @@ async def detect_tcs(
     base_time: datetime = base_time_scalar
     events: list[dict[str, Any]] = []
 
+    # Determine whether throttle_pos / rpm live in named columns or extra_channels.
+    sid_str = str(session_id)
+    use_extra_throttle = not await _channel_has_data(session, sid_str, "throttle_pos")
+    use_extra_rpm = not await _channel_has_data(session, sid_str, "rpm")
+
     for lap in laps:
         lap_start = base_time + timedelta(milliseconds=lap.start_time_ms)
         lap_end = base_time + timedelta(milliseconds=lap.end_time_ms)
 
-        rows = await session.execute(
-            select(
-                TelemetryPoint.time,
-                TelemetryPoint.throttle_pos,
-                TelemetryPoint.rpm,
+        if use_extra_throttle or use_extra_rpm:
+            raw_rows = await session.execute(
+                text(
+                    "SELECT time, "
+                    "  CASE WHEN :use_extra_throttle THEN "
+                    "    (extra_channels->>'throttle_pos')::double precision "
+                    "  ELSE throttle_pos END AS throttle_pos, "
+                    "  CASE WHEN :use_extra_rpm THEN "
+                    "    (extra_channels->>'rpm')::double precision "
+                    "  ELSE rpm END AS rpm "
+                    "FROM telemetry.telemetry_points "
+                    "WHERE session_id = :sid AND time >= :start AND time < :end "
+                    "ORDER BY time"
+                ),
+                {
+                    "sid": sid_str,
+                    "start": lap_start,
+                    "end": lap_end,
+                    "use_extra_throttle": use_extra_throttle,
+                    "use_extra_rpm": use_extra_rpm,
+                },
             )
-            .where(
-                TelemetryPoint.session_id == str(session_id),
-                TelemetryPoint.time >= lap_start,
-                TelemetryPoint.time < lap_end,
+            points = raw_rows.all()
+        else:
+            rows = await session.execute(
+                select(
+                    TelemetryPoint.time,
+                    TelemetryPoint.throttle_pos,
+                    TelemetryPoint.rpm,
+                )
+                .where(
+                    TelemetryPoint.session_id == sid_str,
+                    TelemetryPoint.time >= lap_start,
+                    TelemetryPoint.time < lap_end,
+                )
+                .order_by(TelemetryPoint.time)
             )
-            .order_by(TelemetryPoint.time)
-        )
-        points = rows.all()
+            points = rows.all()
 
         if len(points) < 2:
             continue

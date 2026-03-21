@@ -517,6 +517,7 @@ class SessionService:
         snapshot = SetupSnapshot(
             session_id=session_id,
             settings=data.settings.model_dump(),
+            ecu_data=data.ecu_data,
         )
         session.add(snapshot)
         await session.commit()

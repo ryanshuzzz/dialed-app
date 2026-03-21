@@ -844,7 +844,7 @@ is correct and efficacy data is populated.
 
 ```bash
 # 10a. Fetch lap trend
-curl -s http://localhost:8000/api/v1/progress/bikes/$BIKE_ID/lap-trend \
+curl -s http://localhost:8000/api/v1/progress \
   -H "Authorization: Bearer $TOKEN" \
   | python3 -c "
 import sys,json
@@ -856,7 +856,11 @@ for entry in d.get('lap_time_trend', []):
 "
 
 # 10b. Fetch efficacy
-curl -s http://localhost:8000/api/v1/progress/bikes/$BIKE_ID/efficacy \
+curl -s http://localhost:8000/api/v1/progress/efficacy \
+  -H "Authorization: Bearer $TOKEN"
+
+# 10c. Fetch session history
+curl -s http://localhost:8000/api/v1/progress/sessions \
   -H "Authorization: Bearer $TOKEN"
 ```
 

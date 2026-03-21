@@ -73,17 +73,27 @@ async def test_upload_telemetry():
 
 @pytest.mark.asyncio
 async def test_get_channels():
-    """Channel endpoint returns per-channel stats."""
+    """Channel endpoint returns per-channel stats including extra_channels keys."""
     # We need to mock multiple sequential execute() calls.
     mock_session = MockAsyncSession()
 
     # 1st call: count query returns 100.
     # Then 13 calls for each core channel: (min, max, count).
+    # Then 1 call for extra_channels keys (returns 2 extra keys).
     # Then 1 call for time range.
     results = [MockResult(scalar=100)]  # Total count.
 
     for i in range(13):
         results.append(MockResult(rows=[(10.0 + i, 200.0 + i, 50 + i)]))
+
+    # Extra keys result: two rows with .key and .sample_count attributes.
+    extra_key_1 = MagicMock()
+    extra_key_1.key = "lambda_afr"
+    extra_key_1.sample_count = 20
+    extra_key_2 = MagicMock()
+    extra_key_2.key = "intake_temp"
+    extra_key_2.sample_count = 18
+    results.append(MockResult(rows=[extra_key_1, extra_key_2]))
 
     results.append(MockResult(rows=[(BASE_TIME, BASE_TIME + timedelta(seconds=5))]))
 
@@ -99,8 +109,41 @@ async def test_get_channels():
     assert resp.status_code == 200
     data = resp.json()
     assert data["total_samples"] == 100
-    assert len(data["channels"]) == 13
+    # 13 core channels + 2 extra_channels keys.
+    assert len(data["channels"]) == 15
+    channel_names = [c["name"] for c in data["channels"]]
+    assert "lambda_afr" in channel_names
+    assert "intake_temp" in channel_names
     assert data["channels"][0]["sample_count"] > 0
+
+
+@pytest.mark.asyncio
+async def test_get_channels_no_extra_channels():
+    """Channel endpoint works when extra_channels JSONB has no keys."""
+    mock_session = MockAsyncSession()
+
+    results = [MockResult(scalar=50)]  # Total count.
+    for i in range(13):
+        results.append(MockResult(rows=[(10.0 + i, 200.0 + i, 50 + i)]))
+
+    # Extra keys query returns empty list (no extra channels in this session).
+    results.append(MockResult(rows=[]))
+
+    results.append(MockResult(rows=[(BASE_TIME, BASE_TIME + timedelta(seconds=5))]))
+
+    mock_session.set_results(results)
+
+    app = _make_app()
+    from db import get_timescale_session
+    app.dependency_overrides[get_timescale_session] = lambda: mock_session
+
+    client = TestClient(app)
+    resp = client.get(f"/telemetry/{SESSION_ID}/channels")
+
+    assert resp.status_code == 200
+    data = resp.json()
+    # Only the 13 core channels — no extras.
+    assert len(data["channels"]) == 13
 
 
 @pytest.mark.asyncio

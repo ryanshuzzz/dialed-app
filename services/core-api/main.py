@@ -6,6 +6,11 @@ modifications, ownership, tracks, events, sessions, setup snapshots,
 change logs, progress/efficacy analytics, and channel aliases.
 """
 
+import asyncio
+import os
+from contextlib import asynccontextmanager
+from pathlib import Path
+
 from fastapi import FastAPI
 
 from dialed_shared import (
@@ -31,12 +36,50 @@ from routers import (
 
 logger = setup_logger("core-api")
 
+# Absolute path to alembic.ini so the programmatic call works regardless of cwd.
+_ALEMBIC_INI = str(Path(__file__).resolve().parent / "alembic.ini")
+
+
+def _run_migrations() -> None:
+    """Run ``alembic upgrade head`` synchronously.
+
+    Intended to be called inside a thread (via asyncio.to_thread) so that
+    Alembic's own asyncio.run() call does not conflict with the running event
+    loop in the main thread.
+    """
+    from alembic import command
+    from alembic.config import Config
+
+    cfg = Config(_ALEMBIC_INI)
+    # Honour the runtime DATABASE_URL over whatever is baked into alembic.ini.
+    cfg.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
+    command.upgrade(cfg, "head")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Run Alembic migrations on startup, then yield."""
+    if os.environ.get("DATABASE_URL"):
+        try:
+            logger.info("Running Alembic migrations for core schema…")
+            await asyncio.to_thread(_run_migrations)
+            logger.info("Alembic migrations complete")
+        except Exception:
+            logger.exception(
+                "Alembic migration failed — service will start anyway, "
+                "but the schema may be out of date"
+            )
+    else:
+        logger.warning("DATABASE_URL not set — skipping Alembic migrations")
+    yield
+
 
 def create_app() -> FastAPI:
     app = FastAPI(
         title="Dialed Core API",
         description="Auth, garage, sessions, progress, and admin endpoints",
         version="1.0.0",
+        lifespan=lifespan,
     )
 
     install_middleware(app)

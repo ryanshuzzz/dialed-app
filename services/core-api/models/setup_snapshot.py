@@ -24,6 +24,7 @@ class SetupSnapshot(Base):
         index=True,
     )
     settings: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    ecu_data: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[str] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

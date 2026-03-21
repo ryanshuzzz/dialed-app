@@ -293,12 +293,24 @@ async def confirm_ingestion_job(
                 headers={"X-Internal-Token": token},
             )
             resp.raise_for_status()
-    except httpx.HTTPStatusError:
+    except httpx.HTTPStatusError as exc:
         logger.exception("Failed to write confirmed data to session %s", session_id)
-        raise
-    except Exception:
+        from dialed_shared.errors import DialedException
+
+        raise DialedException(
+            error=f"Core API rejected setup data: {exc.response.status_code}",
+            code="CORE_API_WRITE_FAILED",
+            status_code=502,
+        )
+    except Exception as exc:
         logger.exception("Failed to reach Core API for session %s", session_id)
-        raise
+        from dialed_shared.errors import DialedException
+
+        raise DialedException(
+            error="Could not reach Core API to persist setup data",
+            code="CORE_API_UNAVAILABLE",
+            status_code=502,
+        )
 
     logger.info(
         "Confirmed job %s (%s) — writing to session %s",
