@@ -28,6 +28,7 @@ const SessionNewFeedback = lazy(() => import('@/screens/SessionNewFeedback'));
 const AiInsights = lazy(() => import('@/screens/AiInsights'));
 const EcuSettings = lazy(() => import('@/screens/EcuSettings'));
 const SagCalculator = lazy(() => import('@/screens/SagCalculator'));
+const ChannelMapping = lazy(() => import('@/screens/ChannelMapping'));
 
 function Suspended({ children }: { children: ReactNode }) {
   return (
@@ -222,6 +223,14 @@ export const router = createBrowserRouter([
         element: (
           <Suspended>
             <SagCalculator />
+          </Suspended>
+        ),
+      },
+      {
+        path: 'settings/channels',
+        element: (
+          <Suspended>
+            <ChannelMapping />
           </Suspended>
         ),
       },

@@ -59,7 +59,7 @@ BEACON_COLUMN_NAMES: set[str] = {
 # Minimum distance (in degrees) between two GPS points to consider movement.
 _GPS_MIN_DISTANCE_DEG = 0.0001  # ~11 m at the equator
 
-INSERT_CHUNK_SIZE = 4000
+INSERT_CHUNK_SIZE = 2000
 
 
 # ── Data structures ─────────────────────────────────────────────────────────

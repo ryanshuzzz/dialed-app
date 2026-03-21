@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { ChevronRight, User, Gauge, Cpu, Ruler, Download, Info, LogOut } from 'lucide-react';
+import { ChevronRight, User, Gauge, Cpu, Ruler, Cable, Download, Info, LogOut } from 'lucide-react';
 import {
   useProfile,
   useUpdateProfile,
@@ -344,6 +344,20 @@ export default function Settings() {
                     </span>
                   </div>
                   <p className="text-xs text-foreground-muted">HRC ECU mode configuration</p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-foreground-muted" />
+              </Link>
+
+              <Link
+                to="/settings/channels"
+                className="flex items-center gap-3 border-b border-border-subtle px-4 py-3 transition-colors hover:bg-background-elevated"
+              >
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-background-elevated">
+                  <Cable className="h-4 w-4 text-foreground-secondary" />
+                </div>
+                <div className="flex-1">
+                  <span className="text-sm font-medium text-foreground">Channel Mapping</span>
+                  <p className="text-xs text-foreground-muted">Map data logger columns to Dialed channels</p>
                 </div>
                 <ChevronRight className="h-4 w-4 text-foreground-muted" />
               </Link>
