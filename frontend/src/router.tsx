@@ -19,6 +19,8 @@ const Progress = lazy(() => import('@/screens/Progress'));
 const Admin = lazy(() => import('@/screens/Admin'));
 const Settings = lazy(() => import('@/screens/Settings'));
 
+const NotFound = lazy(() => import('@/screens/NotFound'));
+
 // NEW placeholder screens
 const SessionsList = lazy(() => import('@/screens/SessionsList'));
 const SessionNewSuspension = lazy(() => import('@/screens/SessionNewSuspension'));
@@ -61,16 +63,6 @@ function GuestGuard({ children }: { children: ReactNode }) {
 
 export const router = createBrowserRouter([
   // Public route — no auth required.
-  {
-    path: '/login',
-    element: (
-      <GuestGuard>
-        <Suspended>
-          <Login />
-        </Suspended>
-      </GuestGuard>
-    ),
-  },
   {
     path: '/login',
     element: (
@@ -230,6 +222,14 @@ export const router = createBrowserRouter([
         element: (
           <Suspended>
             <SagCalculator />
+          </Suspended>
+        ),
+      },
+      {
+        path: '*',
+        element: (
+          <Suspended>
+            <NotFound />
           </Suspended>
         ),
       },

@@ -94,6 +94,7 @@ class SetupSnapshotCreate(BaseModel):
     """Append an immutable setup snapshot to a session."""
 
     settings: SuspensionSpec
+    ecu_data: dict | None = None
 
 
 class SetupSnapshotResponse(BaseModel):
@@ -104,6 +105,7 @@ class SetupSnapshotResponse(BaseModel):
     id: uuid.UUID
     session_id: uuid.UUID
     settings: SuspensionSpec
+    ecu_data: dict | None = None
     created_at: datetime
 
 

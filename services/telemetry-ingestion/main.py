@@ -6,7 +6,10 @@ and owns all telemetry storage in TimescaleDB. Processes ingestion jobs
 asynchronously via Redis task queue and notifies clients via SSE.
 """
 
+import asyncio
+import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from sqlalchemy import text
@@ -22,6 +25,20 @@ from dialed_shared import (
 from routers import ingest, telemetry
 
 logger = setup_logger("telemetry-ingestion")
+
+# Absolute path to alembic.ini so the programmatic call works regardless of cwd.
+_ALEMBIC_INI = str(Path(__file__).resolve().parent / "alembic.ini")
+
+
+def _run_migrations() -> None:
+    """Run ``alembic upgrade head`` synchronously inside a thread."""
+    from alembic import command
+    from alembic.config import Config
+
+    cfg = Config(_ALEMBIC_INI)
+    cfg.set_main_option("sqlalchemy.url", os.environ["DATABASE_URL"])
+    command.upgrade(cfg, "head")
+
 
 _CREATE_TELEMETRY_POINTS_SQL = """
 CREATE TABLE IF NOT EXISTS telemetry.telemetry_points (
@@ -76,8 +93,22 @@ async def ensure_timescale_schema() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage database engine lifecycle."""
+    """Run Alembic migrations and TimescaleDB schema setup on startup."""
     logger.info("Telemetry/Ingestion service starting on port 8002")
+
+    if os.environ.get("DATABASE_URL"):
+        try:
+            logger.info("Running Alembic migrations for telemetry schema…")
+            await asyncio.to_thread(_run_migrations)
+            logger.info("Alembic migrations complete")
+        except Exception:
+            logger.exception(
+                "Alembic migration failed — service will start anyway, "
+                "but the schema may be out of date"
+            )
+    else:
+        logger.warning("DATABASE_URL not set — skipping Alembic migrations")
+
     await ensure_timescale_schema()
     yield
     # Dispose both async engines on shutdown.

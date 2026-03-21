@@ -57,6 +57,7 @@ async def test_csv_job_completes():
         patch(f"{_WORKER}._insert_lap_segments", new_callable=AsyncMock),
         patch(f"{_WORKER}._patch_session_best_lap", new_callable=AsyncMock) as mock_patch_session,
         patch(f"{_WORKER}._publish_sse_event", new_callable=AsyncMock) as mock_sse,
+        patch(f"{_WORKER}._publish_ingestion_stream_event", new_callable=AsyncMock) as mock_stream,
         patch(f"{_WORKER}._DbSession") as mock_db_cls,
         patch(f"{_WORKER}._TsSession") as mock_ts_cls,
         patch("dialed_shared.auth.create_internal_token", return_value="test-token"),
@@ -84,6 +85,14 @@ async def test_csv_job_completes():
     sse_data = mock_sse.call_args.args[1]
     assert sse_data["status"] == "complete"
     assert sse_data["result"]["best_lap_ms"] == 30000
+
+    # Should publish Redis stream event for CSV ingestion completion.
+    mock_stream.assert_called_once()
+    stream_kwargs = mock_stream.call_args.kwargs
+    assert stream_kwargs["session_id"] == SESSION_ID
+    assert stream_kwargs["job_id"] == JOB_ID
+    assert stream_kwargs["row_count"] == 1
+    assert stream_kwargs["channels"] == ["gps_speed"]
 
 
 # ═══════════════════════ Failed job ══════════════════════════════════════════
@@ -129,6 +138,7 @@ async def test_csv_best_lap_patch_tolerates_core_api_failure():
         patch(f"{_WORKER}.bulk_insert_telemetry", new_callable=AsyncMock, return_value=1),
         patch(f"{_WORKER}._insert_lap_segments", new_callable=AsyncMock),
         patch(f"{_WORKER}._publish_sse_event", new_callable=AsyncMock),
+        patch(f"{_WORKER}._publish_ingestion_stream_event", new_callable=AsyncMock),
         patch(f"{_WORKER}._DbSession") as mock_db_cls,
         patch(f"{_WORKER}._TsSession") as mock_ts_cls,
         patch("dialed_shared.auth.create_internal_token", return_value="test-token"),
@@ -149,6 +159,55 @@ async def test_csv_best_lap_patch_tolerates_core_api_failure():
 
 
 # ═══════════════════════ Malformed payload ═══════════════════════════════════
+
+
+@pytest.mark.asyncio
+async def test_publish_ingestion_stream_event():
+    """Stream event is published to Redis with correct fields."""
+    import json
+
+    mock_client = AsyncMock()
+    mock_client.xadd = AsyncMock()
+    mock_client.aclose = AsyncMock()
+
+    with patch("redis.asyncio.from_url", return_value=mock_client):
+        from worker import _publish_ingestion_stream_event
+        await _publish_ingestion_stream_event(
+            session_id=SESSION_ID,
+            job_id=JOB_ID,
+            row_count=42,
+            channels=["gps_speed", "rpm", "lambda_afr"],
+        )
+
+    mock_client.xadd.assert_called_once()
+    stream_name, fields = mock_client.xadd.call_args.args
+    assert stream_name == "telemetry.ingestion.completed"
+    assert fields["session_id"] == SESSION_ID
+    assert fields["job_id"] == JOB_ID
+    assert fields["row_count"] == "42"
+    channels_published = json.loads(fields["channels"])
+    assert "gps_speed" in channels_published
+    assert "lambda_afr" in channels_published
+
+
+@pytest.mark.asyncio
+async def test_csv_job_publishes_no_stream_for_ocr():
+    """OCR jobs should NOT publish a Redis stream event."""
+    payload = _make_payload(source="ocr")
+    mock_ocr_result = ({"settings": {}, "raw_response": ""}, 0.9)
+
+    with (
+        patch(f"{_WORKER}._update_job_status", new_callable=AsyncMock),
+        patch(f"{_WORKER}._handle_ocr", new_callable=AsyncMock, return_value=mock_ocr_result),
+        patch(f"{_WORKER}._publish_sse_event", new_callable=AsyncMock),
+        patch(f"{_WORKER}._publish_ingestion_stream_event", new_callable=AsyncMock) as mock_stream,
+        patch("dialed_shared.auth.create_internal_token", return_value="test-token"),
+    ):
+        from worker import handle_job
+        await handle_job(payload)
+
+    # Stream event must NOT be published for OCR jobs.
+    mock_stream.assert_not_called()
 
 
 @pytest.mark.asyncio

@@ -144,7 +144,7 @@ class ContextGatherer:
     async def _fetch_event(self, client: httpx.AsyncClient, event_id: str) -> dict | None:
         """Fetch event detail (includes track_id, conditions)."""
         try:
-            resp = await client.get(f"{self._core_api_url}/events/{event_id}")
+            resp = await client.get(f"{self._core_api_url}/garage/events/{event_id}")
             resp.raise_for_status()
             return resp.json()
         except (httpx.HTTPStatusError, httpx.RequestError) as exc:
@@ -154,7 +154,7 @@ class ContextGatherer:
     async def _fetch_track(self, client: httpx.AsyncClient, track_id: str) -> dict:
         """Fetch track detail."""
         try:
-            resp = await client.get(f"{self._core_api_url}/tracks/{track_id}")
+            resp = await client.get(f"{self._core_api_url}/garage/tracks/{track_id}")
             resp.raise_for_status()
             return resp.json()
         except (httpx.HTTPStatusError, httpx.RequestError) as exc:

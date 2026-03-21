@@ -22,14 +22,49 @@ class BikeStatus(str, Enum):
 
 
 class SuspensionEndSettings(BaseModel):
-    """Settings for one end of suspension (front fork or rear shock)."""
+    """Settings for one end of suspension (front fork or rear shock).
 
-    compression: float | None = None
-    rebound: float | None = None
-    preload: float | None = None
-    spring_rate: float | None = None
+    Domain-specific names (compression_clicks, rebound_clicks, preload_turns,
+    spring_rate_nmm, fork_height_mm) are canonical. The generic names used in
+    the original schema (compression, rebound, preload, spring_rate) are accepted
+    as input aliases for backwards compatibility.
+    """
+
+    model_config = ConfigDict(populate_by_name=True)
+
+    brand: str | None = None
+
+    # Damping — domain name is canonical, generic name accepted as alias
+    compression_clicks: float | None = Field(None)
+    rebound_clicks: float | None = Field(None)
+
+    # Preload
+    preload_turns: float | None = Field(None)
+
+    # Spring
+    spring_rate_nmm: float | None = Field(None)
+
+    # Fork-specific geometry
+    fork_height_mm: float | None = None
     oil_level: float | None = None
     ride_height: float | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def _accept_generic_aliases(cls, data: object) -> object:
+        """Map legacy generic field names to domain-specific names on input."""
+        if not isinstance(data, dict):
+            return data
+        d = dict(data)
+        for generic, specific in (
+            ("compression", "compression_clicks"),
+            ("rebound", "rebound_clicks"),
+            ("preload", "preload_turns"),
+            ("spring_rate", "spring_rate_nmm"),
+        ):
+            if generic in d and specific not in d:
+                d[specific] = d.pop(generic)
+        return d
 
 
 class SuspensionSpec(BaseModel):

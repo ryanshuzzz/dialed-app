@@ -34,6 +34,7 @@ from services.suggestion_service import (
     list_suggestions_by_session,
     record_change_outcome,
     update_change_status,
+    validate_session_exists,
 )
 from sse import stream_suggestion_events
 
@@ -52,6 +53,7 @@ async def request_suggestion(
 ) -> SuggestResponse:
     """Create a generation job, push to dialed:ai queue, return job_id."""
     internal_token = request.headers.get("X-Internal-Token", "")
+    await validate_session_exists(body.session_id, internal_token)
     job_id = await create_generation_job(
         db=db,
         session_id=body.session_id,

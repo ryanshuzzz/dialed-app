@@ -194,7 +194,7 @@ export default function Events() {
                 )}
               </div>
               <p className="text-sm text-foreground-secondary">
-                {trackLookup.get(event.track_id) ?? 'Unknown Track'}
+                {(event.track_id ? trackLookup.get(event.track_id) : undefined) ?? 'Unknown Track'}
               </p>
               <p className="text-sm text-foreground-muted">
                 {bikeLookup.get(event.bike_id) ?? 'Unknown Bike'}

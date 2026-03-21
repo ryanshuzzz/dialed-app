@@ -14,6 +14,7 @@ import { StepIndicator } from '@/components/common/StepIndicator'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useSessionFormStore } from '@/stores/sessionFormStore'
+import { useCreateSession, useCreateSnapshot } from '@/hooks/useSessions'
 
 type FeedbackMode = 'manual' | 'voice' | 'photo' | 'csv'
 
@@ -47,6 +48,22 @@ export default function SessionNewFeedback() {
   const setBestLap = useSessionFormStore((s) => s.setBestLap)
   const feedbackMode = useSessionFormStore((s) => s.feedbackMode)
   const setFeedbackMode = useSessionFormStore((s) => s.setFeedbackMode)
+  const resetForm = useSessionFormStore((s) => s.resetForm)
+
+  // Step 1 fields
+  const eventId = useSessionFormStore((s) => s.eventId)
+  const sessionType = useSessionFormStore((s) => s.sessionType)
+  const frontCompound = useSessionFormStore((s) => s.frontCompound)
+  const rearCompound = useSessionFormStore((s) => s.rearCompound)
+
+  // Step 2 fields
+  const frontSettings = useSessionFormStore((s) => s.frontSettings)
+  const rearSettings = useSessionFormStore((s) => s.rearSettings)
+
+  const createSession = useCreateSession()
+  const createSnapshot = useCreateSnapshot()
+
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   // Voice mode state
   const [isRecording, setIsRecording] = useState(false)
@@ -92,9 +109,72 @@ export default function SessionNewFeedback() {
     }
   }
 
-  const handleSaveSession = () => {
-    navigate('/sessions/qp6')
+  const handleSaveSession = async () => {
+    setSaveError(null)
+
+    if (!eventId) {
+      setSaveError('Please select an event in Step 1 before saving.')
+      return
+    }
+
+    // Convert M:SS.mmm fields to total milliseconds
+    const mins = parseInt(bestLap.minutes || '0', 10)
+    const secs = parseInt(bestLap.seconds || '0', 10)
+    const millis = parseInt(bestLap.millis || '0', 10)
+    const hasLap = bestLap.minutes !== '' || bestLap.seconds !== '' || bestLap.millis !== ''
+    const manual_best_lap_ms = hasLap
+      ? (mins * 60 + secs) * 1000 + millis
+      : null
+
+    // Build rider_feedback string combining symptoms and free text
+    const symptomLine = selectedSymptoms.length > 0
+      ? `Symptoms: ${selectedSymptoms.join(', ')}`
+      : ''
+    const feedbackParts = [symptomLine, feedbackText].filter(Boolean)
+    const rider_feedback = feedbackParts.length > 0 ? feedbackParts.join('\n') : null
+
+    try {
+      const session = await createSession.mutateAsync({
+        event_id: eventId,
+        session_type: sessionType,
+        manual_best_lap_ms,
+        tire_front: { compound: frontCompound },
+        tire_rear: { compound: rearCompound },
+        rider_feedback,
+        ride_metrics: null,
+      })
+
+      // Post setup snapshot with suspension data from Step 2
+      await createSnapshot.mutateAsync({
+        sessionId: session.id,
+        data: {
+          settings: {
+            schema_version: 1,
+            front: {
+              spring_rate: frontSettings.spring,
+              compression: frontSettings.compression,
+              rebound: frontSettings.rebound,
+              preload: frontSettings.preload,
+              ride_height: frontSettings.forkHeight,
+            },
+            rear: {
+              spring_rate: rearSettings.spring,
+              compression: rearSettings.compression,
+              rebound: rearSettings.rebound,
+              preload: rearSettings.preload,
+            },
+          },
+        },
+      })
+
+      resetForm()
+      navigate(`/sessions/${session.id}`)
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Failed to save session. Please try again.')
+    }
   }
+
+  const isSaving = createSession.isPending || createSnapshot.isPending
 
   return (
     <div className="pb-24">
@@ -508,11 +588,17 @@ export default function SessionNewFeedback() {
       {/* Footer */}
       <div className="fixed bottom-0 left-0 right-0 border-t border-border-subtle bg-background-surface safe-area-bottom">
         <div className="mx-auto max-w-[480px] px-4 py-4">
+          {saveError && (
+            <div className="mb-3 rounded-lg border border-accent-red/30 bg-accent-red/10 px-4 py-3 text-sm text-accent-red">
+              {saveError}
+            </div>
+          )}
           <Button
             onClick={handleSaveSession}
-            className="h-12 w-full rounded bg-accent-orange text-base font-medium text-white hover:bg-accent-orange-hover"
+            disabled={isSaving}
+            className="h-12 w-full rounded bg-accent-orange text-base font-medium text-white hover:bg-accent-orange-hover disabled:opacity-50"
           >
-            Save Session
+            {isSaving ? 'Saving...' : 'Save Session'}
           </Button>
         </div>
       </div>

@@ -90,6 +90,53 @@ async def _publish_sse_event(job_id: str, event_data: dict) -> None:
         await client.aclose()
 
 
+# Redis stream name for cross-service telemetry ingestion events.
+TELEMETRY_STREAM = "telemetry.ingestion.completed"
+
+
+async def _publish_ingestion_stream_event(
+    session_id: str,
+    job_id: str,
+    row_count: int,
+    channels: list[str],
+) -> None:
+    """Publish a ``telemetry.ingestion.completed`` event to a Redis stream.
+
+    Other services (e.g. AI) consume this stream to react to new telemetry
+    data without polling.  All values are stored as strings as required by
+    Redis Streams.
+    """
+    import json
+
+    import redis.asyncio as aioredis
+
+    client = aioredis.from_url(REDIS_URL, decode_responses=True)
+    try:
+        await client.xadd(
+            TELEMETRY_STREAM,
+            {
+                "session_id": session_id,
+                "job_id": job_id,
+                "row_count": str(row_count),
+                "channels": json.dumps(channels),
+            },
+        )
+        logger.info(
+            "Published %s event: session=%s job=%s rows=%d",
+            TELEMETRY_STREAM,
+            session_id,
+            job_id,
+            row_count,
+        )
+    except Exception:
+        # Stream publish failure is non-fatal — log and continue.
+        logger.exception(
+            "Failed to publish ingestion stream event for job %s", job_id
+        )
+    finally:
+        await client.aclose()
+
+
 async def _get_api_key(
     source: str,
     user_id: str | None,
@@ -290,6 +337,16 @@ async def handle_job(payload: dict) -> None:
             "status": "complete",
             "result": result,
         })
+
+        # For CSV jobs, publish a Redis stream event so other services
+        # (e.g. AI) can react to new telemetry data.
+        if source == "csv":
+            await _publish_ingestion_stream_event(
+                session_id=session_id,
+                job_id=job_id,
+                row_count=result.get("rows_inserted", 0),
+                channels=result.get("channels_found", []),
+            )
 
         logger.info("Job %s completed successfully", job_id)
 

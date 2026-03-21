@@ -121,6 +121,29 @@ async def get_channels(
                 )
             )
 
+    # Query extra_channels keys and their sample counts from JSONB.
+    # jsonb_object_keys() unnests all keys in extra_channels for each row.
+    extra_keys_row = await ts.execute(
+        text(
+            "SELECT key, count(*) AS sample_count "
+            "FROM telemetry.telemetry_points, "
+            "jsonb_object_keys(extra_channels) AS key "
+            "WHERE session_id = :sid "
+            "GROUP BY key "
+            "ORDER BY key"
+        ),
+        {"sid": session_id},
+    )
+    for row in extra_keys_row.all():
+        channels.append(
+            ChannelInfo(
+                name=row.key,
+                min=None,
+                max=None,
+                sample_count=row.sample_count,
+            )
+        )
+
     # Get time range.
     time_row = await ts.execute(
         select(

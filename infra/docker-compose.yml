@@ -121,6 +121,8 @@ services:
       REDIS_URL: redis://redis:6379
       CORE_API_URL: http://core-api:8001
       INTERNAL_SECRET: dev-internal-secret
+    volumes:
+      - ingestion-storage:/storage
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8002/health"]
       interval: 10s
@@ -154,6 +156,55 @@ services:
     restart: unless-stopped
     mem_limit: 1g
 
+  ai-worker:
+    build:
+      context: ..
+      dockerfile: services/ai/Dockerfile
+    command: ["python", "worker.py"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      core-api:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:devpassword@postgres/dialed
+      REDIS_URL: redis://redis:6379
+      CORE_API_URL: http://core-api:8001
+      TELEMETRY_URL: http://telemetry-ingestion:8002
+      INTERNAL_SECRET: dev-internal-secret
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+    restart: unless-stopped
+    mem_limit: 1g
+
+  ingestion-worker:
+    build:
+      context: ..
+      dockerfile: services/telemetry-ingestion/Dockerfile
+    command: ["python", "worker.py"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      timescale:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      core-api:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:devpassword@postgres/dialed
+      TIMESCALE_URL: postgresql+asyncpg://postgres:devpassword@timescale/dialed_telemetry
+      REDIS_URL: redis://redis:6379
+      CORE_API_URL: http://core-api:8001
+      INTERNAL_SECRET: dev-internal-secret
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    volumes:
+      - ingestion-storage:/storage
+    restart: unless-stopped
+    mem_limit: 512m
+
   # ═══════════════════════ FRONTEND ═══════════════════════
 
   frontend:
@@ -177,3 +228,4 @@ volumes:
   pgdata:
   tsdata:
   redisdata:
+  ingestion-storage:

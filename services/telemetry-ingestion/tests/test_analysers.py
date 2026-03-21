@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -13,13 +13,23 @@ from analysers.tcs_detector import detect_tcs
 from tests.conftest import BASE_TIME, MockAsyncSession, MockLapSegment, MockResult, SESSION_ID
 
 
-def _make_session_with_data(base_time_result, lap_data_rows):
-    """Build a MockAsyncSession that returns base_time then lap data."""
+def _make_session_with_data(base_time_result, lap_data_rows, num_channel_checks=2):
+    """Build a MockAsyncSession that returns base_time, channel-has-data checks,
+    then lap data.
+
+    After the base_time scalar, each analyser performs ``num_channel_checks``
+    calls to ``_channel_has_data`` (one per channel it uses).  Each check
+    returns a non-None scalar to indicate the named column has data, so the
+    analyser uses the ORM path (not the extra_channels JSONB fallback).
+    """
     session = MockAsyncSession()
-    session.set_results([
-        MockResult(scalar=base_time_result),
-        MockResult(rows=lap_data_rows),
-    ])
+    results = [MockResult(scalar=base_time_result)]
+    # One result per channel-has-data check: return a non-None scalar so the
+    # analyser sees the named column as populated.
+    for _ in range(num_channel_checks):
+        results.append(MockResult(scalar=1.0))
+    results.append(MockResult(rows=lap_data_rows))
+    session.set_results(results)
     return session
 
 
@@ -133,7 +143,8 @@ class TestForkRebound:
                 pos = 5.0  # Static.
             rows.append((t, pos))
 
-        session = _make_session_with_data(BASE_TIME, rows)
+        # fork_rebound checks 1 channel (fork_position).
+        session = _make_session_with_data(BASE_TIME, rows, num_channel_checks=1)
         result = await analyse_fork(session, SESSION_ID, laps)
 
         assert result["max_compression_mm"] == 35.0
@@ -157,7 +168,8 @@ class TestForkRebound:
         laps = [MockLapSegment(1, 0, 1000)]
 
         rows = [(BASE_TIME + timedelta(milliseconds=i * 50), None) for i in range(20)]
-        session = _make_session_with_data(BASE_TIME, rows)
+        # fork_rebound checks 1 channel (fork_position).
+        session = _make_session_with_data(BASE_TIME, rows, num_channel_checks=1)
         result = await analyse_fork(session, SESSION_ID, laps)
 
         # Not enough non-null positions for analysis.
@@ -280,3 +292,98 @@ class TestTcsDetector:
         events = await detect_tcs(session, SESSION_ID, laps)
 
         assert events == []
+
+
+# ═══════════════════════ extra_channels fallback (ISSUE-17) ══════════════════
+
+
+class TestExtraChannelsFallback:
+    """Verify analysers fall back to extra_channels JSONB when named columns
+    are all NULL (i.e. the data was stored via the extra overflow path)."""
+
+    @pytest.mark.asyncio
+    async def test_braking_falls_back_to_extra_channels(self):
+        """When front_brake_psi named column is empty, braking analyser uses
+        extra_channels JSONB fallback query."""
+        laps = [MockLapSegment(1, 0, 5000)]
+
+        # Rows returned by the raw SQL fallback query (named_tuple-like objects
+        # with .time, .front_brake_psi, .gps_speed attributes).
+        rows = []
+        for i in range(20):
+            row = MagicMock()
+            row[0] = BASE_TIME + timedelta(milliseconds=i * 50)
+            row[1] = 60.0 if 5 <= i <= 10 else 0.0  # front_brake_psi
+            row[2] = 120.0                             # gps_speed
+            # Support tuple unpacking.
+            row.__iter__ = lambda self, _row=row: iter([_row[0], _row[1], _row[2]])
+            row.__getitem__ = lambda self, k, _row=row: [_row[0], _row[1], _row[2]][k]
+            rows.append(row)
+
+        session = MockAsyncSession()
+        # base_time → front_brake_psi has_data=None (no data) → gps_speed has_data=1.0 → lap rows
+        session.set_results([
+            MockResult(scalar=BASE_TIME),
+            MockResult(scalar=None),   # front_brake_psi: no named-column data
+            MockResult(scalar=1.0),    # gps_speed: has named-column data
+            MockResult(rows=rows),
+        ])
+
+        zones = await analyse_braking(session, SESSION_ID, laps)
+        # Zone should be detected from the JSONB fallback data.
+        assert len(zones) == 1
+
+    @pytest.mark.asyncio
+    async def test_fork_falls_back_to_extra_channels(self):
+        """When fork_position named column is empty, fork analyser uses
+        extra_channels JSONB fallback query."""
+        laps = [MockLapSegment(1, 0, 2000)]
+
+        rows = []
+        for i in range(20):
+            row = MagicMock()
+            pos = 10.0 + i if i < 10 else 20.0 - (i - 10)
+            row.__iter__ = lambda self, _t=BASE_TIME + timedelta(milliseconds=i * 50), _p=pos: iter([_t, _p])
+            row.__getitem__ = lambda self, k, _t=BASE_TIME + timedelta(milliseconds=i * 50), _p=pos: [_t, _p][k]
+            rows.append(row)
+
+        session = MockAsyncSession()
+        # base_time → fork_position has_data=None (no data) → lap rows
+        session.set_results([
+            MockResult(scalar=BASE_TIME),
+            MockResult(scalar=None),   # fork_position: no named-column data
+            MockResult(rows=rows),
+        ])
+
+        result = await analyse_fork(session, SESSION_ID, laps)
+        assert result["max_compression_mm"] is not None
+        assert result["max_compression_mm"] > 0
+
+    @pytest.mark.asyncio
+    async def test_tcs_falls_back_to_extra_channels(self):
+        """When throttle_pos named column is empty, TCS detector uses
+        extra_channels JSONB fallback query."""
+        laps = [MockLapSegment(1, 0, 5000)]
+
+        rows = []
+        for i in range(20):
+            row = MagicMock()
+            t = BASE_TIME + timedelta(milliseconds=i * 50)
+            throttle = 80.0
+            rpm = 12000.0 - (i - 10) * 500 if 10 <= i < 14 else 12000.0
+            row.__iter__ = lambda self, _t=t, _th=throttle, _r=rpm: iter([_t, _th, _r])
+            row.__getitem__ = lambda self, k, _t=t, _th=throttle, _r=rpm: [_t, _th, _r][k]
+            rows.append(row)
+
+        session = MockAsyncSession()
+        # base_time → throttle_pos has_data=None → rpm has_data=1.0 → lap rows
+        session.set_results([
+            MockResult(scalar=BASE_TIME),
+            MockResult(scalar=None),   # throttle_pos: no named-column data
+            MockResult(scalar=1.0),    # rpm: has named-column data
+            MockResult(rows=rows),
+        ])
+
+        # Should not raise even when using the JSONB fallback path.
+        events = await detect_tcs(session, SESSION_ID, laps)
+        assert isinstance(events, list)

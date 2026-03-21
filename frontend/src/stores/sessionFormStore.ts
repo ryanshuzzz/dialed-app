@@ -7,6 +7,7 @@ type Condition = 'Dry' | 'Damp' | 'Wet'
 interface SessionFormState {
   // Step 1: Setup
   sessionType: SessionType
+  eventId: string | null
   frontCompound: Compound
   rearCompound: Compound
   newTires: boolean
@@ -44,6 +45,7 @@ interface SessionFormState {
 
   // Actions
   setSessionType: (type: SessionType) => void
+  setEventId: (id: string | null) => void
   setFrontCompound: (compound: Compound) => void
   setRearCompound: (compound: Compound) => void
   setNewTires: (value: boolean) => void
@@ -80,6 +82,7 @@ const previousRear = {
 
 const initialState = {
   sessionType: 'practice' as SessionType,
+  eventId: null as string | null,
   frontCompound: 'SC1' as Compound,
   rearCompound: 'SC1' as Compound,
   newTires: false,
@@ -118,6 +121,7 @@ export const useSessionFormStore = create<SessionFormState>((set) => ({
   ...initialState,
 
   setSessionType: (sessionType) => set({ sessionType }),
+  setEventId: (eventId) => set({ eventId }),
   setFrontCompound: (frontCompound) => set({ frontCompound }),
   setRearCompound: (rearCompound) => set({ rearCompound }),
   setNewTires: (newTires) => set({ newTires }),

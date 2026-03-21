@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import logging
+import os
 import uuid
 from datetime import date, datetime, timezone
 
+import redis.asyncio as aioredis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -13,6 +16,8 @@ from dialed_shared.errors import (
     NotFoundException,
     ValidationException,
 )
+
+logger = logging.getLogger(__name__)
 
 from models.change_log import ChangeLog
 from models.event import Event
@@ -41,6 +46,35 @@ from schemas.sessions import (
     SetupSnapshotResponse,
 )
 from schemas.tracks import TrackCreate, TrackResponse, TrackUpdate
+
+
+async def _publish_session_created(sess: "Session") -> None:  # noqa: F821
+    """Publish a session.created event to the Redis Stream of the same name.
+
+    Fields: session_id, event_id, user_id, session_type.
+    Failures are logged and swallowed so they never roll back a committed session.
+    """
+    redis_url = os.environ.get("REDIS_URL", "redis://redis:6379")
+    client = aioredis.from_url(redis_url, decode_responses=True)
+    try:
+        await client.xadd(
+            "session.created",
+            {
+                "session_id": str(sess.id),
+                "event_id": str(sess.event_id),
+                "user_id": str(sess.user_id),
+                "session_type": str(sess.session_type),
+            },
+        )
+        logger.info(
+            "Published session.created event for session_id=%s", sess.id
+        )
+    except Exception:
+        logger.exception(
+            "Failed to publish session.created event for session_id=%s", sess.id
+        )
+    finally:
+        await client.aclose()
 
 
 class SessionService:
@@ -374,6 +408,9 @@ class SessionService:
         session.add(sess)
         await session.commit()
         await session.refresh(sess)
+
+        await _publish_session_created(sess)
+
         return SessionResponse.model_validate(sess)
 
     @staticmethod
@@ -480,6 +517,7 @@ class SessionService:
         snapshot = SetupSnapshot(
             session_id=session_id,
             settings=data.settings.model_dump(),
+            ecu_data=data.ecu_data,
         )
         session.add(snapshot)
         await session.commit()

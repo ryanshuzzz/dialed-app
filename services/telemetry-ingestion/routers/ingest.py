@@ -14,15 +14,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from db import get_db_session
 from dialed_shared.auth import get_current_user
-from dialed_shared.errors import NotFoundException, ValidationException
+from dialed_shared.errors import DialedException, NotFoundException, ValidationException
 from dialed_shared.logging import setup_logger
 from dialed_shared.redis_tasks import push_job
 from models.ingestion_job import IngestionJob, IngestionSource, IngestionStatus
+from pipelines.voice_pipeline import extract_entities
 from schemas.ingestion import (
     ConfirmRequest,
     ConfirmResponse,
     IngestionJobCreated,
     IngestionJobResponse,
+    VoiceTranscriptRequest,
+    VoiceTranscriptResponse,
 )
 from sse import create_sse_response
 
@@ -110,13 +113,21 @@ async def ingest_csv(
     user: dict = Depends(get_current_user),
 ) -> IngestionJobCreated:
     """Upload a CSV data logger file for async ingestion."""
+    allowed = {".csv", ".txt"}
+    ext = os.path.splitext(file.filename or "upload")[1].lower()
+    if ext not in allowed:
+        raise DialedException(
+            error=f"Unsupported file type: {ext}. Allowed: {', '.join(sorted(allowed))}",
+            code="INVALID_FILE_FORMAT",
+            status_code=400,
+        )
     job_id, _ = await _create_ingestion_job(
         db=db,
         session_id=session_id,
         source=IngestionSource.csv,
         user_id=user["user_id"],
         file=file,
-        allowed_extensions={".csv", ".txt"},
+        allowed_extensions=set(),  # already validated above
     )
     return IngestionJobCreated(job_id=job_id)
 
@@ -157,6 +168,37 @@ async def ingest_voice(
         allowed_extensions={".wav", ".mp3", ".m4a", ".ogg", ".webm"},
     )
     return IngestionJobCreated(job_id=job_id)
+
+
+@router.post("/voice/transcript", response_model=VoiceTranscriptResponse)
+async def ingest_voice_transcript(
+    body: VoiceTranscriptRequest,
+    user: dict = Depends(get_current_user),
+) -> VoiceTranscriptResponse:
+    """Extract entities from a pre-transcribed voice note without audio upload.
+
+    Skips the Whisper transcription step and runs entity extraction directly
+    on the supplied transcript text. The extracted entities are returned for
+    user review — no ingestion job is created and nothing is auto-saved.
+    The caller should present the result for confirmation.
+    """
+    result = extract_entities(body.transcript)
+
+    logger.info(
+        "Voice transcript entity extraction — session=%s, mentions=%d, confidence=%.2f",
+        body.session_id,
+        len(result.setting_mentions),
+        result.confidence,
+    )
+
+    return VoiceTranscriptResponse(
+        session_id=body.session_id,
+        transcript=result.transcript,
+        setting_mentions=result.setting_mentions,
+        lap_times=result.lap_times,
+        feedback=result.feedback,
+        confidence=result.confidence,
+    )
 
 
 # ── Job status ───────────────────────────────────────────────────────────────
@@ -251,12 +293,24 @@ async def confirm_ingestion_job(
                 headers={"X-Internal-Token": token},
             )
             resp.raise_for_status()
-    except httpx.HTTPStatusError:
+    except httpx.HTTPStatusError as exc:
         logger.exception("Failed to write confirmed data to session %s", session_id)
-        raise
-    except Exception:
+        from dialed_shared.errors import DialedException
+
+        raise DialedException(
+            error=f"Core API rejected setup data: {exc.response.status_code}",
+            code="CORE_API_WRITE_FAILED",
+            status_code=502,
+        )
+    except Exception as exc:
         logger.exception("Failed to reach Core API for session %s", session_id)
-        raise
+        from dialed_shared.errors import DialedException
+
+        raise DialedException(
+            error="Could not reach Core API to persist setup data",
+            code="CORE_API_UNAVAILABLE",
+            status_code=502,
+        )
 
     logger.info(
         "Confirmed job %s (%s) — writing to session %s",

@@ -2,11 +2,45 @@
 
 from __future__ import annotations
 
+import re
 import uuid
 from datetime import datetime
 from enum import Enum
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+# Use a permissive email type that accepts non-deliverable TLDs (e.g. .local)
+# email-validator's deliverability check rejects RFC-valid addresses like user@host.local
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$", re.IGNORECASE)
+
+
+class _Email(str):
+    """Permissive email string — validates basic format without DNS lookup."""
+
+    @classmethod
+    def __get_validators__(cls):  # Pydantic v1 compat (no-op for v2 path)
+        yield cls._validate
+
+    @classmethod
+    def __get_pydantic_core_schema__(cls, source_type, handler):
+        from pydantic_core import core_schema
+
+        return core_schema.no_info_plain_validator_function(
+            cls._validate,
+            serialization=core_schema.to_string_ser_schema(),
+        )
+
+    @classmethod
+    def _validate(cls, v: object) -> "_Email":
+        if not isinstance(v, str):
+            raise ValueError("email must be a string")
+        v = v.strip().lower()
+        if not _EMAIL_RE.match(v):
+            raise ValueError("invalid email address")
+        return cls(v)
+
+
+EmailStr = _Email  # shadow the pydantic import — keeps field types readable
 
 
 class SkillLevel(str, Enum):
@@ -41,6 +75,9 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(..., min_length=8)
     display_name: str | None = None
+    skill_level: SkillLevel = SkillLevel.novice
+    rider_type: RiderType = RiderType.street
+    units: Units = Units.metric
 
 
 class LoginRequest(BaseModel):

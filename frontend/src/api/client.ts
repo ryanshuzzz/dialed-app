@@ -27,7 +27,7 @@ export class ApiError extends Error {
   }
 }
 
-const BASE_URL = import.meta.env.VITE_GATEWAY_URL ?? 'http://localhost:8000';
+const BASE_URL = import.meta.env.VITE_GATEWAY_URL ?? '';
 const API_PREFIX = '/api/v1';
 
 export async function apiClient<T>(

@@ -248,6 +248,12 @@ async def handle_job(payload: dict) -> None:
 
 async def main() -> None:
     """Entry point for the worker process."""
+    if not ANTHROPIC_API_KEY:
+        logger.warning(
+            "ANTHROPIC_API_KEY is not set — jobs will fail unless every user "
+            "supplies a BYOK key. Set ANTHROPIC_API_KEY in the environment or "
+            "in infra/.env before starting the stack."
+        )
     logger.info("AI worker starting, consuming from dialed:ai")
     await consume_jobs(
         redis_url=REDIS_URL,

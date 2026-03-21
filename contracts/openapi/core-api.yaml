@@ -1087,6 +1087,10 @@ components:
           $ref: '#/components/schemas/Uuid'
         settings:
           $ref: '#/components/schemas/SuspensionSpec'
+        ecu_data:
+          type: ['object', 'null']
+          additionalProperties: true
+          description: Arbitrary ECU/electronics configuration (traction control, engine maps, etc.)
         created_at:
           $ref: '#/components/schemas/DateTime'
 
@@ -1096,6 +1100,10 @@ components:
       properties:
         settings:
           $ref: '#/components/schemas/SuspensionSpec'
+        ecu_data:
+          type: ['object', 'null']
+          additionalProperties: true
+          description: Arbitrary ECU/electronics configuration (traction control, engine maps, etc.)
 
     ChangeLog:
       type: object

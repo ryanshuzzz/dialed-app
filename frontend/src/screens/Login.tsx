@@ -56,6 +56,9 @@ export default function Login() {
   function toggleMode() {
     setMode(mode === 'login' ? 'register' : 'login');
     setError(null);
+    setEmail('');
+    setPassword('');
+    setDisplayName('');
   }
 
   return (
