@@ -52,6 +52,13 @@ export async function apiClient<T>(
   });
 
   if (!response.ok) {
+    // Auto-logout on 401 — token expired or invalid after server restart
+    if (response.status === 401) {
+      useAuthStore.getState().logout();
+      window.location.href = '/login';
+      throw new ApiError('Session expired', 'UNAUTHORIZED', 401);
+    }
+
     let errorBody: ErrorResponse;
     try {
       errorBody = await response.json() as ErrorResponse;
