@@ -3,12 +3,18 @@
 Parses AiM-compatible CSV data logger files, maps columns through the channel
 alias table, detects lap boundaries, and prepares rows for bulk insert into
 the TimescaleDB telemetry_points hypertable.
+
+Handles the AiM CSV preamble format where metadata lines (Format, Session,
+Vehicle, Racer, Beacon Markers, Segment Times, etc.) precede the actual
+column headers and data rows.
 """
 
 from __future__ import annotations
 
 import csv
+import io
 import math
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
@@ -81,6 +87,26 @@ class LapBoundary:
 
 
 @dataclass
+class AimPreamble:
+    """Parsed metadata from the AiM CSV preamble section."""
+
+    format: str | None = None
+    session: str | None = None
+    vehicle: str | None = None
+    racer: str | None = None
+    championship: str | None = None
+    venue: str | None = None
+    event: str | None = None
+    time: str | None = None
+    duration: float | None = None
+    segment: str | None = None
+    beacon_markers: list[float] = field(default_factory=list)
+    segment_times_raw: list[str] = field(default_factory=list)
+    segment_times_ms: list[int] = field(default_factory=list)
+    header_line_index: int = 0  # 0-based line index of the real header row
+
+
+@dataclass
 class ParseResult:
     """Output of parse_csv — everything needed for ingestion."""
 
@@ -90,6 +116,7 @@ class ParseResult:
     channels_found: list[str]
     total_duration_s: float
     row_count: int
+    preamble: AimPreamble | None = None
 
 
 # ── Channel alias fetching ───────────────────────────────────────────────────
@@ -342,6 +369,175 @@ def _detect_from_gps(
     return laps
 
 
+# ── AiM preamble parsing ─────────────────────────────────────────────────────
+
+
+def _parse_segment_time_to_ms(raw: str) -> int | None:
+    """Convert a segment time string like '1:45.972' or '2:32.836' to ms.
+
+    Supports formats: M:SS.mmm, MM:SS.mmm, H:MM:SS.mmm, and plain seconds.
+    """
+    raw = raw.strip()
+    if not raw:
+        return None
+
+    # Try M:SS.mmm or MM:SS.mmm
+    m = re.match(r"^(\d+):(\d{1,2})\.(\d{1,3})$", raw)
+    if m:
+        minutes = int(m.group(1))
+        seconds = int(m.group(2))
+        # Pad milliseconds to 3 digits
+        millis_str = m.group(3).ljust(3, "0")
+        millis = int(millis_str)
+        return minutes * 60_000 + seconds * 1000 + millis
+
+    # Try M:SS (no fractional)
+    m = re.match(r"^(\d+):(\d{1,2})$", raw)
+    if m:
+        minutes = int(m.group(1))
+        seconds = int(m.group(2))
+        return minutes * 60_000 + seconds * 1000
+
+    # Try plain seconds (float)
+    try:
+        return int(float(raw) * 1000)
+    except ValueError:
+        return None
+
+
+def _parse_aim_preamble(lines: list[list[str]]) -> AimPreamble:
+    """Parse the AiM CSV preamble and locate the real header row.
+
+    Scans lines for the metadata section and finds the actual data header
+    row (identified as starting with 'Time' and having many columns).
+
+    Args:
+        lines: All CSV rows (as lists of strings) from the file.
+
+    Returns:
+        An ``AimPreamble`` with extracted metadata and the index of the
+        real header row.
+    """
+    preamble = AimPreamble()
+
+    # Metadata keys we recognise in the preamble (key in col 0, value in col 1+).
+    meta_keys = {
+        "format", "session", "vehicle", "racer", "championship",
+        "venue", "event", "time", "duration", "segment",
+        "comment", "date", "sample rate",
+    }
+
+    for i, row in enumerate(lines):
+        if not row or not row[0].strip():
+            continue
+
+        first_cell = row[0].strip().lower()
+
+        # Check if this is the real data header row:
+        # - Starts with "time" (case-insensitive)
+        # - Has many columns (50+ for AiM files with 90+ channels)
+        if first_cell in ("time", "timestamp") and len(row) >= 50:
+            preamble.header_line_index = i
+            break
+
+        # Parse known metadata keys
+        if first_cell in meta_keys:
+            value = row[1].strip() if len(row) > 1 else ""
+            attr = first_cell.replace(" ", "_")
+            if attr == "format":
+                preamble.format = value
+            elif attr == "session":
+                preamble.session = value
+            elif attr == "vehicle":
+                preamble.vehicle = value
+            elif attr == "racer":
+                preamble.racer = value
+            elif attr == "championship":
+                preamble.championship = value
+            elif attr == "venue":
+                preamble.venue = value
+            elif attr == "event":
+                preamble.event = value
+            elif attr == "time":
+                preamble.time = value
+            elif attr == "duration":
+                try:
+                    preamble.duration = float(value)
+                except ValueError:
+                    pass
+            elif attr == "segment":
+                preamble.segment = value
+
+        # Parse beacon markers: cumulative elapsed seconds
+        elif first_cell == "beacon markers":
+            markers = []
+            for cell in row[1:]:
+                cell = cell.strip()
+                if cell:
+                    try:
+                        markers.append(float(cell))
+                    except ValueError:
+                        pass
+            preamble.beacon_markers = markers
+
+        # Parse segment times: lap durations in M:SS.mmm
+        elif first_cell == "segment times":
+            raw_times = []
+            ms_times = []
+            for cell in row[1:]:
+                cell = cell.strip()
+                if cell:
+                    raw_times.append(cell)
+                    ms = _parse_segment_time_to_ms(cell)
+                    if ms is not None:
+                        ms_times.append(ms)
+            preamble.segment_times_raw = raw_times
+            preamble.segment_times_ms = ms_times
+
+    return preamble
+
+
+def _laps_from_preamble(preamble: AimPreamble) -> list[LapBoundary] | None:
+    """Build lap boundaries from preamble beacon markers and segment times.
+
+    Returns None if the preamble doesn't have sufficient data.
+    """
+    if not preamble.beacon_markers or not preamble.segment_times_ms:
+        return None
+
+    if len(preamble.beacon_markers) != len(preamble.segment_times_ms):
+        logger.warning(
+            "Preamble mismatch: %d beacon markers vs %d segment times",
+            len(preamble.beacon_markers),
+            len(preamble.segment_times_ms),
+        )
+        return None
+
+    laps: list[LapBoundary] = []
+    # Beacon markers are cumulative: [152.836, 261.404, 367.77, 473.742, 612.998]
+    # The first lap runs from 0 to beacon_markers[0], etc.
+    prev_marker = 0.0
+
+    for lap_num, (marker, lap_time_ms) in enumerate(
+        zip(preamble.beacon_markers, preamble.segment_times_ms), start=1
+    ):
+        start_ms = int(prev_marker * 1000)
+        end_ms = int(marker * 1000)
+        laps.append(
+            LapBoundary(
+                lap_number=lap_num,
+                start_time_ms=start_ms,
+                end_time_ms=end_ms,
+                lap_time_ms=lap_time_ms,
+                beacon_start_s=prev_marker,
+                beacon_end_s=marker,
+            )
+        )
+        prev_marker = marker
+
+    return laps
+
+
 # ── CSV parsing ──────────────────────────────────────────────────────────────
 
 
@@ -438,114 +634,180 @@ def parse_csv(
     with open(file_path, newline="", encoding="utf-8-sig") as fh:
         reader = csv.reader(fh)
 
-        # Read headers.
-        try:
-            headers = next(reader)
-        except StopIteration:
-            raise ValueError("CSV file is empty")
+        # Read ALL lines first so we can detect and skip the AiM preamble.
+        all_lines = list(reader)
 
-        if not headers:
-            raise ValueError("CSV file is empty")
+    if not all_lines:
+        raise ValueError("CSV file is empty")
 
-        time_col_idx = _find_time_column(headers)
-        col_map = map_columns(headers, aliases, logger_model=logger_model)
+    # ── Detect AiM preamble ──────────────────────────────────────────────
+    # Check if this file has an AiM preamble (first cell is "Format" and
+    # the value is "AiM CSV File", or we find a header row further down).
+    preamble: AimPreamble | None = None
+    header_idx = 0  # Index into all_lines for the real header row
 
-        if not col_map:
-            raise ValueError("CSV file contains no recognisable channels")
+    first_cell = all_lines[0][0].strip().lower() if all_lines[0] else ""
+    is_aim_format = first_cell == "format" and len(all_lines[0]) > 1 and "aim" in all_lines[0][1].lower()
 
-        beacon_col_idx = _find_beacon_column(headers, col_map)
+    if is_aim_format:
+        preamble = _parse_aim_preamble(all_lines)
+        header_idx = preamble.header_line_index
+        logger.info(
+            "AiM preamble detected: session=%s vehicle=%s racer=%s, "
+            "%d beacon markers, %d segment times, header at line %d",
+            preamble.session,
+            preamble.vehicle,
+            preamble.racer,
+            len(preamble.beacon_markers),
+            len(preamble.segment_times_ms),
+            header_idx + 1,
+        )
+    else:
+        # No preamble — traditional CSV, first row is headers.
+        # But still check if the first row might be a preamble row
+        # by looking for a header row with "Time" and many columns.
+        for i, row in enumerate(all_lines):
+            if row and row[0].strip().lower() in ("time", "timestamp") and len(row) >= 50:
+                if i > 0:
+                    # There's something before the header — try parsing as preamble
+                    preamble = _parse_aim_preamble(all_lines)
+                    header_idx = preamble.header_line_index
+                break
 
-        # Collect data rows.
-        rows: list[dict[str, Any]] = []
-        timestamps: list[float] = []
-        beacon_values: list[float | None] = [] if beacon_col_idx is not None else None
-        gps_lats: list[float | None] = []
-        gps_lons: list[float | None] = []
-        has_gps = False
+    headers = all_lines[header_idx]
+    if not headers:
+        raise ValueError("CSV file is empty")
 
-        row_start_time: datetime | None = None
+    time_col_idx = _find_time_column(headers)
+    col_map = map_columns(headers, aliases, logger_model=logger_model)
 
-        for line_num, raw_row in enumerate(reader, start=2):
-            # Skip blank lines.
-            if not any(cell.strip() for cell in raw_row):
+    if not col_map:
+        raise ValueError("CSV file contains no recognisable channels")
+
+    beacon_col_idx = _find_beacon_column(headers, col_map)
+
+    # Determine where data rows start (skip header, units row, blank lines).
+    data_start_idx = header_idx + 1
+
+    # Skip units row: the row right after the header that contains unit strings
+    # like "s", "mph", "g", "deg", etc. Detected by checking if the first cell
+    # (corresponding to the Time column) is a known unit abbreviation.
+    if data_start_idx < len(all_lines):
+        units_row = all_lines[data_start_idx]
+        if units_row:
+            first_unit = units_row[0].strip().lower() if units_row[0] else ""
+            # Common time units in AiM files
+            if first_unit in ("s", "sec", "ms", "min", "h"):
+                logger.info("Skipping units row at line %d", data_start_idx + 1)
+                data_start_idx += 1
+
+    # Collect data rows.
+    rows: list[dict[str, Any]] = []
+    timestamps: list[float] = []
+    beacon_values: list[float | None] = [] if beacon_col_idx is not None else None
+    gps_lats: list[float | None] = []
+    gps_lons: list[float | None] = []
+    has_gps = False
+
+    row_start_time: datetime | None = None
+    data_row_num = 0
+
+    for line_idx in range(data_start_idx, len(all_lines)):
+        raw_row = all_lines[line_idx]
+
+        # Skip blank lines.
+        if not raw_row or not any(cell.strip() for cell in raw_row):
+            continue
+
+        # Parse time.
+        time_val: datetime | None = None
+        elapsed_s: float = 0.0
+
+        if time_col_idx is not None and time_col_idx < len(raw_row):
+            time_val = _parse_time(raw_row[time_col_idx])
+
+        if time_val is None:
+            # Fallback: synthesise from row index at 20Hz.
+            elapsed_s = data_row_num * 0.05
+            time_val = datetime.fromtimestamp(elapsed_s, tz=timezone.utc)
+        else:
+            if row_start_time is None:
+                row_start_time = time_val
+            elapsed_s = (time_val - row_start_time).total_seconds()
+
+        timestamps.append(elapsed_s)
+        data_row_num += 1
+
+        # Build the row dict.
+        row: dict[str, Any] = {"time": time_val}
+        if session_id is not None:
+            row["session_id"] = str(session_id)
+
+        extra: dict[str, float | None] = {}
+
+        for idx, cm in col_map.items():
+            if idx >= len(raw_row):
                 continue
 
-            # Parse time.
-            time_val: datetime | None = None
-            elapsed_s: float = 0.0
-
-            if time_col_idx is not None and time_col_idx < len(raw_row):
-                time_val = _parse_time(raw_row[time_col_idx])
-
-            if time_val is None:
-                # Fallback: synthesise from row index at 20Hz.
-                elapsed_s = (line_num - 2) * 0.05
-                time_val = datetime.fromtimestamp(elapsed_s, tz=timezone.utc)
+            cell = raw_row[idx]
+            if cm.canonical_name == "gear":
+                value = _safe_int(cell)
             else:
-                if row_start_time is None:
-                    row_start_time = time_val
-                elapsed_s = (time_val - row_start_time).total_seconds()
+                value = _safe_float(cell)
 
-            timestamps.append(elapsed_s)
-
-            # Build the row dict.
-            row: dict[str, Any] = {"time": time_val}
-            if session_id is not None:
-                row["session_id"] = str(session_id)
-
-            extra: dict[str, float | None] = {}
-
-            for idx, cm in col_map.items():
-                if idx >= len(raw_row):
-                    continue
-
-                cell = raw_row[idx]
-                if cm.canonical_name == "gear":
-                    value = _safe_int(cell)
-                else:
-                    value = _safe_float(cell)
-
-                if cm.is_core:
-                    row[cm.canonical_name] = value
-                else:
-                    extra[cm.canonical_name] = value
-
-            if extra:
-                row["extra_channels"] = extra
-
-            # Collect beacon values.
-            if beacon_col_idx is not None and beacon_col_idx < len(raw_row):
-                beacon_values.append(_safe_float(raw_row[beacon_col_idx]))
-
-            # Collect GPS data for fallback lap detection.
-            lat = row.get("lat")
-            lon = row.get("lon")
-            if lat is not None and lon is not None:
-                gps_lats.append(lat)
-                gps_lons.append(lon)
-                has_gps = True
+            if cm.is_core:
+                row[cm.canonical_name] = value
             else:
-                gps_lats.append(None)
-                gps_lons.append(None)
+                extra[cm.canonical_name] = value
 
-            rows.append(row)
+        if extra:
+            row["extra_channels"] = extra
+
+        # Collect beacon values.
+        if beacon_col_idx is not None and beacon_col_idx < len(raw_row):
+            beacon_values.append(_safe_float(raw_row[beacon_col_idx]))
+
+        # Collect GPS data for fallback lap detection.
+        lat = row.get("lat")
+        lon = row.get("lon")
+        if lat is not None and lon is not None:
+            gps_lats.append(lat)
+            gps_lons.append(lon)
+            has_gps = True
+        else:
+            gps_lats.append(None)
+            gps_lons.append(None)
+
+        rows.append(row)
 
     if not rows:
         raise ValueError("CSV file contains no data rows")
 
-    # Detect lap boundaries.
-    gps_pairs: list[tuple[float, float] | None] | None = None
-    if has_gps:
-        gps_pairs = [
-            (lat, lon) if lat is not None and lon is not None else None
-            for lat, lon in zip(gps_lats, gps_lons)
-        ]
+    # ── Detect lap boundaries ────────────────────────────────────────────
+    # Prefer preamble beacon markers / segment times (authoritative in AiM).
+    laps: list[LapBoundary] | None = None
+    if preamble is not None:
+        laps = _laps_from_preamble(preamble)
+        if laps:
+            logger.info(
+                "Using %d laps from AiM preamble (beacon markers + segment times)",
+                len(laps),
+            )
 
-    laps = detect_lap_boundaries(
-        timestamps=timestamps,
-        beacon_column=beacon_values,
-        gps_data=gps_pairs,
-    )
+    if laps is None:
+        # Fallback to in-data beacon detection or GPS.
+        gps_pairs: list[tuple[float, float] | None] | None = None
+        if has_gps:
+            gps_pairs = [
+                (lat, lon) if lat is not None and lon is not None else None
+                for lat, lon in zip(gps_lats, gps_lons)
+            ]
+
+        laps = detect_lap_boundaries(
+            timestamps=timestamps,
+            beacon_column=beacon_values,
+            gps_data=gps_pairs,
+        )
 
     best_lap_ms = min((lap.lap_time_ms for lap in laps), default=0)
 
@@ -561,6 +823,7 @@ def parse_csv(
         channels_found=channels_found,
         total_duration_s=total_duration_s,
         row_count=len(rows),
+        preamble=preamble,
     )
 
 
