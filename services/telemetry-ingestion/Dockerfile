@@ -36,6 +36,7 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY --from=builder /build/service/ /app/
 
 RUN useradd --create-home --shell /bin/bash dialed
+RUN mkdir -p /storage/uploads && chown -R dialed:dialed /storage
 USER dialed
 WORKDIR /app
 

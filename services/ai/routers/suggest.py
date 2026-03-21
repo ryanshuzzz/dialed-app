@@ -11,9 +11,11 @@ Matches contracts/openapi/ai.yaml exactly:
 
 from __future__ import annotations
 
+import os
 import uuid
 
 from fastapi import APIRouter, Depends, Request
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sse_starlette.sse import EventSourceResponse
 
@@ -52,6 +54,14 @@ async def request_suggestion(
     db: AsyncSession = Depends(get_session),
 ) -> SuggestResponse:
     """Create a generation job, push to dialed:ai queue, return job_id."""
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        return JSONResponse(
+            status_code=503,
+            content={
+                "error": "AI service not configured",
+                "code": "SERVICE_UNAVAILABLE",
+            },
+        )
     internal_token = request.headers.get("X-Internal-Token", "")
     await validate_session_exists(body.session_id, internal_token)
     job_id = await create_generation_job(

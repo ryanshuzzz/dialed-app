@@ -14,8 +14,6 @@ export function StepIndicator({ currentStep, totalSteps, label }: StepIndicatorP
             className={`h-1 w-6 rounded-full ${
               i < currentStep
                 ? 'bg-accent-orange'
-                : i === currentStep
-                ? 'bg-accent-orange'
                 : 'bg-border-subtle'
             }`}
           />

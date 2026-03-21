@@ -419,8 +419,15 @@ class SessionService:
         session_id: uuid.UUID,
         user_id: uuid.UUID,
     ) -> SessionDetailResponse:
+        from sqlalchemy.orm import selectinload
+
         result = await session.execute(
-            select(Session).where(Session.id == session_id)
+            select(Session)
+            .options(
+                selectinload(Session.setup_snapshots),
+                selectinload(Session.change_log_entries),
+            )
+            .where(Session.id == session_id)
         )
         sess = result.scalar_one_or_none()
         if not sess:
@@ -428,26 +435,13 @@ class SessionService:
         if sess.user_id != user_id:
             raise ForbiddenException(error="You do not have access to this session")
 
-        # Fetch snapshots
-        snap_result = await session.execute(
-            select(SetupSnapshot)
-            .where(SetupSnapshot.session_id == session_id)
-            .order_by(SetupSnapshot.created_at)
-        )
         snapshots = [
             SetupSnapshotResponse.model_validate(s)
-            for s in snap_result.scalars().all()
+            for s in sorted(sess.setup_snapshots, key=lambda s: s.created_at)
         ]
-
-        # Fetch change log
-        cl_result = await session.execute(
-            select(ChangeLog)
-            .where(ChangeLog.session_id == session_id)
-            .order_by(ChangeLog.applied_at)
-        )
         changes = [
             ChangeLogResponse.model_validate(c)
-            for c in cl_result.scalars().all()
+            for c in sorted(sess.change_log_entries, key=lambda c: c.applied_at)
         ]
 
         session_data = SessionResponse.model_validate(sess).model_dump()

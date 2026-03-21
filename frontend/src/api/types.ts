@@ -72,10 +72,16 @@ export interface ApiKeySummary {
 
 // ---------- Suspension ----------
 export interface SuspensionEndSettings {
+  brand?: string | null;
   compression?: number | null;
+  compression_clicks?: number | null;
   rebound?: number | null;
+  rebound_clicks?: number | null;
   preload?: number | null;
+  preload_turns?: number | null;
   spring_rate?: number | null;
+  spring_rate_nmm?: number | null;
+  fork_height_mm?: number | null;
   oil_level?: number | null;
   ride_height?: number | null;
 }

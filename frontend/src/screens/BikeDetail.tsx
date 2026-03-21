@@ -10,6 +10,7 @@ import { TiresTab } from '@/components/garage/TiresTab';
 import { ModsTab } from '@/components/garage/ModsTab';
 import { OwnershipTab } from '@/components/garage/OwnershipTab';
 import { EmptyState } from '@/components/common/EmptyState';
+import { useMaintenance } from '@/hooks/useMaintenance';
 import type { UpdateBikeRequest, SuspensionSpec, SuspensionEndSettings } from '@/api/types';
 
 type TabId = 'overview' | 'maintenance' | 'tires' | 'mods' | 'ownership' | 'sessions';
@@ -76,6 +77,7 @@ export default function BikeDetail() {
   const [editSuspension, setEditSuspension] = useState<SuspensionSpec>({
     schema_version: 1,
   });
+  const { data: maintenanceLogs } = useMaintenance(id);
 
   if (isLoading) {
     return (
@@ -168,7 +170,7 @@ export default function BikeDetail() {
       {bike.stats && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
           <div className="bg-background-surface rounded-lg border border-border-subtle p-3 text-center">
-            <p className="text-2xl font-bold text-foreground">{bike.stats.maintenance_count ?? 0}</p>
+            <p className="text-2xl font-bold text-foreground">{(bike.stats.maintenance_count || maintenanceLogs?.length) ?? 0}</p>
             <p className="text-xs text-foreground-muted">Maintenance</p>
           </div>
           <div className="bg-background-surface rounded-lg border border-border-subtle p-3 text-center">

@@ -272,6 +272,9 @@ export default function SessionDetail() {
 
   // Use API change log data or session embedded changes, otherwise fall back to mock
   const changes = changeLog ?? session.changes ?? []
+  const snapshot = session.snapshots?.[0]?.settings
+  const front = snapshot?.front
+  const rear = snapshot?.rear
   const hasApiChanges = changes.length > 0
 
   // Use API suggestions when available
@@ -287,7 +290,7 @@ export default function SessionDetail() {
     : mockSessionData.laps
 
   return (
-    <div className="pb-8" data-testid="session-detail">
+    <div className="pb-24" data-testid="session-detail">
       {/* Header */}
       <div className="mb-2 flex items-start gap-3">
         <Link
@@ -352,6 +355,7 @@ export default function SessionDetail() {
       {activeTab === 'overview' && (
         <div className="flex flex-col gap-6">
           {/* Setup Snapshot */}
+          {(front || rear) && (
           <section className="rounded-lg border border-border-subtle bg-background-surface p-4">
             <h3 className="mb-4 text-sm font-medium text-foreground-secondary">
               Setup Snapshot
@@ -363,36 +367,46 @@ export default function SessionDetail() {
                   Front
                 </h4>
                 <div className="flex flex-col gap-2 text-sm">
+                  {front?.spring_rate_nmm != null && (
                   <div className="flex justify-between">
                     <span className="text-foreground-secondary">Spring</span>
                     <span className="font-mono tabular-nums text-foreground">
-                      {mockSessionData.frontSettings.spring}
+                      {front.spring_rate_nmm} <span className="text-xs text-foreground-muted font-normal">N/mm</span>
                     </span>
                   </div>
+                  )}
+                  {front?.compression_clicks != null && (
                   <div className="flex justify-between">
                     <span className="text-foreground-secondary">Comp</span>
                     <span className="font-mono tabular-nums text-foreground">
-                      {mockSessionData.frontSettings.compression}
+                      {front.compression_clicks} <span className="text-xs text-foreground-muted font-normal">clicks</span>
                     </span>
                   </div>
-                  <div
-                    className={cn(
-                      'flex justify-between rounded px-1.5 py-0.5 -mx-1.5',
-                      'border-l-2 border-l-accent-orange bg-accent-orange/5',
-                    )}
-                  >
+                  )}
+                  {front?.rebound_clicks != null && (
+                  <div className="flex justify-between">
                     <span className="text-foreground-secondary">Rebound</span>
-                    <span className="flex items-center gap-1 font-mono tabular-nums text-foreground">
-                      {mockSessionData.frontSettings.rebound}
-                      <span className="text-xs text-accent-orange">-2</span>
+                    <span className="font-mono tabular-nums text-foreground">
+                      {front.rebound_clicks} <span className="text-xs text-foreground-muted font-normal">clicks</span>
                     </span>
                   </div>
+                  )}
+                  {front?.preload_turns != null && (
                   <div className="flex justify-between">
                     <span className="text-foreground-secondary">Preload</span>
                     <span className="font-mono tabular-nums text-foreground">
-                      {mockSessionData.frontSettings.preload}
+                      {front.preload_turns} <span className="text-xs text-foreground-muted font-normal">turns</span>
                     </span>
                   </div>
+                  )}
+                  {front?.fork_height_mm != null && (
+                  <div className="flex justify-between">
+                    <span className="text-foreground-secondary">Height</span>
+                    <span className="font-mono tabular-nums text-foreground">
+                      {front.fork_height_mm} <span className="text-xs text-foreground-muted font-normal">mm</span>
+                    </span>
+                  </div>
+                  )}
                 </div>
               </div>
 
@@ -402,47 +416,51 @@ export default function SessionDetail() {
                   Rear
                 </h4>
                 <div className="flex flex-col gap-2 text-sm">
+                  {rear?.spring_rate_nmm != null && (
                   <div className="flex justify-between">
                     <span className="text-foreground-secondary">Spring</span>
                     <span className="font-mono tabular-nums text-foreground">
-                      {mockSessionData.rearSettings.spring}
+                      {rear.spring_rate_nmm} <span className="text-xs text-foreground-muted font-normal">N/mm</span>
                     </span>
                   </div>
+                  )}
+                  {rear?.compression_clicks != null && (
                   <div className="flex justify-between">
                     <span className="text-foreground-secondary">Comp</span>
                     <span className="font-mono tabular-nums text-foreground">
-                      {mockSessionData.rearSettings.compression}
+                      {rear.compression_clicks} <span className="text-xs text-foreground-muted font-normal">clicks</span>
                     </span>
                   </div>
+                  )}
+                  {rear?.rebound_clicks != null && (
                   <div className="flex justify-between">
                     <span className="text-foreground-secondary">Rebound</span>
                     <span className="font-mono tabular-nums text-foreground">
-                      {mockSessionData.rearSettings.rebound}
+                      {rear.rebound_clicks} <span className="text-xs text-foreground-muted font-normal">clicks</span>
                     </span>
                   </div>
+                  )}
+                  {rear?.preload_turns != null && (
                   <div className="flex justify-between">
                     <span className="text-foreground-secondary">Preload</span>
                     <span className="font-mono tabular-nums text-foreground">
-                      {mockSessionData.rearSettings.preload}
+                      {rear.preload_turns} <span className="text-xs text-foreground-muted font-normal">turns</span>
                     </span>
                   </div>
+                  )}
                 </div>
               </div>
             </div>
           </section>
+          )}
 
           {/* Conditions */}
           <div className="flex flex-wrap gap-2">
+            {session.tire_front?.compound && session.tire_rear?.compound && (
             <span className="rounded-full border border-border-subtle bg-background-surface px-3 py-1 text-xs text-foreground-secondary">
-              {mockSessionData.conditions.airTemp}&deg;C air
+              {session.tire_front.compound} front / {session.tire_rear.compound} rear
             </span>
-            <span className="rounded-full border border-border-subtle bg-background-surface px-3 py-1 text-xs text-foreground-secondary">
-              {mockSessionData.conditions.condition}
-            </span>
-            <span className="rounded-full border border-border-subtle bg-background-surface px-3 py-1 text-xs text-foreground-secondary">
-              {mockSessionData.conditions.frontTire} front / {mockSessionData.conditions.rearTire}{' '}
-              rear
-            </span>
+            )}
           </div>
 
           {/* Rider Feedback */}

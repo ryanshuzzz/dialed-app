@@ -1,6 +1,8 @@
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Sparkles, ChevronRight, TrendingDown, Zap, Wrench } from 'lucide-react';
+import { Sparkles, ChevronRight, TrendingDown, Zap, Wrench, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { apiGet, ApiError } from '@/api/client';
 
 const insights = [
   {
@@ -60,6 +62,59 @@ const recentSuggestions = [
 ];
 
 export default function AiInsights() {
+  const [aiUnavailable, setAiUnavailable] = useState(false)
+
+  useEffect(() => {
+    // Check if the AI suggest endpoint is available
+    apiGet('/suggest/health')
+      .then(() => setAiUnavailable(false))
+      .catch((err) => {
+        if (
+          err instanceof ApiError &&
+          (err.status === 503 || err.code === 'SERVICE_UNAVAILABLE')
+        ) {
+          setAiUnavailable(true)
+        }
+      })
+  }, [])
+
+  if (aiUnavailable) {
+    return (
+      <div className="min-h-screen bg-background pb-24">
+        <header className="border-b border-border-subtle bg-background safe-area-top">
+          <div className="mx-auto max-w-[480px] px-4 py-6">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent-orange/20">
+                <Sparkles className="h-5 w-5 text-accent-orange" />
+              </div>
+              <div>
+                <h1 className="font-mono text-2xl font-semibold text-foreground">AI Insights</h1>
+                <p className="text-sm text-foreground-secondary">
+                  Personalized recommendations
+                </p>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <main className="mx-auto max-w-[480px] px-4 py-12">
+          <div className="flex flex-col items-center gap-4 text-center">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-foreground-muted/10">
+              <AlertCircle className="h-8 w-8 text-foreground-muted" />
+            </div>
+            <h2 className="text-lg font-semibold text-foreground">
+              AI suggestions aren't configured yet
+            </h2>
+            <p className="max-w-sm text-sm text-foreground-secondary">
+              An API key for the AI service hasn't been set up. Once configured, you'll get
+              personalized suspension recommendations based on your session data.
+            </p>
+          </div>
+        </main>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-background pb-24">
       {/* Header */}

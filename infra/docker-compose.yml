@@ -215,7 +215,7 @@ services:
       gateway:
         condition: service_healthy
     environment:
-      VITE_GATEWAY_URL: http://localhost:8000
+      VITE_GATEWAY_URL: ""
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5173/"]
       interval: 10s

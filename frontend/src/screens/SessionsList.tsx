@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom'
 import { Plus, Timer } from 'lucide-react'
 import { useSessions } from '@/hooks/useSessions'
 import { useBikes } from '@/hooks/useBikes'
+import { useEvents } from '@/hooks/useEvents'
+import { useTracks } from '@/hooks/useTracks'
 import { SessionCard, type SessionType } from '@/components/common/SessionCard'
 import { LapSparkline } from '@/components/common/LapSparkline'
 import { EmptyState } from '@/components/common/EmptyState'
@@ -17,6 +19,32 @@ function formatLapTime(ms: number): string {
 export default function SessionsList() {
   const { data: apiSessions } = useSessions()
   const { data: bikes } = useBikes()
+  const { data: events } = useEvents()
+  const { data: tracks } = useTracks()
+
+  // Build lookup maps for resolving track names from session -> event -> track
+  const trackMap = useMemo(() => {
+    const map = new Map<string, string>()
+    if (tracks) {
+      for (const t of tracks) {
+        map.set(t.id, t.config ? `${t.name} ${t.config}` : t.name)
+      }
+    }
+    return map
+  }, [tracks])
+
+  const sessionTrackMap = useMemo(() => {
+    const map = new Map<string, string>()
+    if (events) {
+      for (const e of events) {
+        if (e.track_id) {
+          const name = trackMap.get(e.track_id)
+          if (name) map.set(e.id, name)
+        }
+      }
+    }
+    return map
+  }, [events, trackMap])
 
   const sessions = useMemo(() => {
     if (!apiSessions || apiSessions.length === 0) return []
@@ -35,9 +63,10 @@ export default function SessionsList() {
           hour: 'numeric',
           minute: '2-digit',
         }),
+        trackName: sessionTrackMap.get(s.event_id),
       }
     })
-  }, [apiSessions])
+  }, [apiSessions, sessionTrackMap])
 
   // Compute best lap from real session data
   const bestLapMs = useMemo(() => {

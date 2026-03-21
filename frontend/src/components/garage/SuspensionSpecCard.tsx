@@ -4,13 +4,32 @@ interface SuspensionSpecCardProps {
   spec: SuspensionSpec;
 }
 
-const LABELS: Record<keyof SuspensionEndSettings, string> = {
+const LABELS: Partial<Record<keyof SuspensionEndSettings, string>> = {
+  compression_clicks: 'Compression',
   compression: 'Compression',
+  rebound_clicks: 'Rebound',
   rebound: 'Rebound',
+  preload_turns: 'Preload',
   preload: 'Preload',
+  spring_rate_nmm: 'Spring Rate',
   spring_rate: 'Spring Rate',
+  fork_height_mm: 'Fork Height',
   oil_level: 'Oil Level',
   ride_height: 'Ride Height',
+};
+
+const UNITS: Partial<Record<keyof SuspensionEndSettings, string>> = {
+  compression_clicks: 'clicks',
+  compression: 'clicks',
+  rebound_clicks: 'clicks',
+  rebound: 'clicks',
+  preload_turns: 'turns',
+  preload: 'turns',
+  spring_rate_nmm: 'N/mm',
+  spring_rate: 'N/mm',
+  fork_height_mm: 'mm',
+  oil_level: 'mm',
+  ride_height: 'mm',
 };
 
 function EndSection({ title, settings }: { title: string; settings?: SuspensionEndSettings }) {
@@ -29,7 +48,7 @@ function EndSection({ title, settings }: { title: string; settings?: SuspensionE
         {entries.map(([key, value]) => (
           <div key={key} className="flex justify-between col-span-1">
             <dt className="text-sm text-foreground-muted">{LABELS[key]}</dt>
-            <dd className="text-sm font-medium text-foreground">{value}</dd>
+            <dd className="text-sm font-medium text-foreground">{value} <span className="text-foreground-muted font-normal">{UNITS[key]}</span></dd>
           </div>
         ))}
       </dl>

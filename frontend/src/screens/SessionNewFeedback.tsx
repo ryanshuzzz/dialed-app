@@ -15,6 +15,8 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useSessionFormStore } from '@/stores/sessionFormStore'
 import { useCreateSession, useCreateSnapshot } from '@/hooks/useSessions'
+import { useIngestCsv, useIngestionJob } from '@/hooks/useIngestion'
+import { useSSE } from '@/hooks/useSSE'
 
 type FeedbackMode = 'manual' | 'voice' | 'photo' | 'csv'
 
@@ -72,7 +74,131 @@ export default function SessionNewFeedback() {
   const [hasRecording, setHasRecording] = useState(false)
 
   // CSV mode state
-  const [csvParsed, setCsvParsed] = useState(false)
+  const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [csvJobId, setCsvJobId] = useState<string | null>(null)
+  const [csvSessionId, setCsvSessionId] = useState<string | null>(null)
+  const [csvStatus, setCsvStatus] = useState<string | null>(null)
+  const [csvError, setCsvError] = useState<string | null>(null)
+  const [csvResult, setCsvResult] = useState<Record<string, unknown> | null>(null)
+  const [isDragOver, setIsDragOver] = useState(false)
+  const ingestCsv = useIngestCsv()
+  const { data: csvJob } = useIngestionJob(csvJobId ?? undefined)
+
+  // SSE streaming for real-time progress
+  const [sseUrl, setSseUrl] = useState<string | null>(null)
+  useSSE(sseUrl, {
+    onStatus: (status) => setCsvStatus(status),
+    onComplete: (data) => {
+      setCsvResult(data as Record<string, unknown>)
+      setCsvStatus('complete')
+      setSseUrl(null)
+    },
+    onFailed: (data) => {
+      const err = data as Record<string, unknown>
+      setCsvError(typeof err?.error_message === 'string' ? err.error_message : 'Parsing failed')
+      setCsvStatus('failed')
+      setSseUrl(null)
+    },
+  })
+
+  // Fallback: sync from polling query
+  useEffect(() => {
+    if (csvJob) {
+      if (csvJob.status === 'complete' && csvJob.result) {
+        setCsvResult(csvJob.result)
+        setCsvStatus('complete')
+      } else if (csvJob.status === 'failed') {
+        setCsvError(csvJob.error_message ?? 'Parsing failed')
+        setCsvStatus('failed')
+      } else if (csvJob.status === 'processing') {
+        setCsvStatus('processing')
+      }
+    }
+  }, [csvJob])
+
+  const handleCsvFileSelect = (file: File) => {
+    setCsvFile(file)
+    setCsvError(null)
+    setCsvResult(null)
+    setCsvStatus(null)
+    setCsvJobId(null)
+    setSseUrl(null)
+  }
+
+  const handleCsvUpload = async () => {
+    if (!csvFile) return
+    if (!eventId) {
+      setCsvError('Please select an event in Step 1 before uploading.')
+      return
+    }
+
+    setCsvError(null)
+    setCsvStatus('creating_session')
+
+    try {
+      // Create session first
+      const session = await createSession.mutateAsync({
+        event_id: eventId,
+        session_type: sessionType,
+        manual_best_lap_ms: null,
+        tire_front: { compound: frontCompound },
+        tire_rear: { compound: rearCompound },
+        rider_feedback: null,
+        ride_metrics: null,
+      })
+
+      setCsvSessionId(session.id)
+
+      // Post suspension snapshot
+      await createSnapshot.mutateAsync({
+        sessionId: session.id,
+        data: {
+          settings: {
+            schema_version: 1,
+            front: {
+              spring_rate: frontSettings.spring,
+              compression: frontSettings.compression,
+              rebound: frontSettings.rebound,
+              preload: frontSettings.preload,
+              ride_height: frontSettings.forkHeight,
+            },
+            rear: {
+              spring_rate: rearSettings.spring,
+              compression: rearSettings.compression,
+              rebound: rearSettings.rebound,
+              preload: rearSettings.preload,
+            },
+          },
+        },
+      })
+
+      setCsvStatus('uploading')
+
+      // Upload CSV
+      const { job_id } = await ingestCsv.mutateAsync({
+        sessionId: session.id,
+        file: csvFile,
+      })
+
+      setCsvJobId(job_id)
+      setCsvStatus('processing')
+      // Start SSE stream for real-time updates
+      setSseUrl(`/ingest/jobs/${job_id}/stream`)
+    } catch (err) {
+      setCsvError(err instanceof Error ? err.message : 'Upload failed')
+      setCsvStatus('failed')
+    }
+  }
+
+  const resetCsvState = () => {
+    setCsvFile(null)
+    setCsvJobId(null)
+    setCsvSessionId(null)
+    setCsvStatus(null)
+    setCsvError(null)
+    setCsvResult(null)
+    setSseUrl(null)
+  }
 
   // Photo mode state
   const [photoTaken, setPhotoTaken] = useState(false)
@@ -485,10 +611,35 @@ export default function SessionNewFeedback() {
       {/* CSV Mode */}
       {feedbackMode === 'csv' && (
         <div className="flex flex-col gap-6">
-          {!csvParsed ? (
+          {/* File picker / drag-drop area */}
+          {!csvFile && !csvResult && (
             <div
-              className="flex aspect-[4/3] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-border bg-background-surface transition-colors hover:border-accent-orange"
-              onClick={() => setCsvParsed(true)}
+              onDragOver={(e) => { e.preventDefault(); setIsDragOver(true) }}
+              onDragLeave={() => setIsDragOver(false)}
+              onDrop={(e) => {
+                e.preventDefault()
+                setIsDragOver(false)
+                const file = e.dataTransfer.files?.[0]
+                if (file && (file.name.endsWith('.csv') || file.name.endsWith('.CSV'))) {
+                  handleCsvFileSelect(file)
+                }
+              }}
+              onClick={() => {
+                const input = document.createElement('input')
+                input.type = 'file'
+                input.accept = '.csv'
+                input.onchange = (e) => {
+                  const file = (e.target as HTMLInputElement).files?.[0]
+                  if (file) handleCsvFileSelect(file)
+                }
+                input.click()
+              }}
+              className={cn(
+                'flex aspect-[4/3] cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed bg-background-surface transition-colors',
+                isDragOver
+                  ? 'border-accent-orange bg-accent-orange/5'
+                  : 'border-border hover:border-accent-orange',
+              )}
             >
               <Upload className="mb-4 h-12 w-12 text-foreground-muted" />
               <p className="mb-2 text-sm font-medium text-foreground">
@@ -498,7 +649,79 @@ export default function SessionNewFeedback() {
                 or tap to select .csv file
               </p>
             </div>
-          ) : (
+          )}
+
+          {/* File selected — ready to upload */}
+          {csvFile && !csvStatus && (
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center gap-3 rounded-lg border border-border-subtle bg-background-surface p-4">
+                <FileSpreadsheet className="h-8 w-8 text-accent-orange" />
+                <div className="flex-1 min-w-0">
+                  <p className="truncate text-sm font-medium text-foreground">{csvFile.name}</p>
+                  <p className="text-xs text-foreground-muted">
+                    {(csvFile.size / 1024).toFixed(1)} KB
+                  </p>
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); resetCsvState() }}
+                  className="rounded-md p-1 text-foreground-muted hover:text-foreground"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              {csvError && (
+                <div className="rounded-lg border border-accent-red/30 bg-accent-red/10 px-4 py-3 text-sm text-accent-red">
+                  {csvError}
+                </div>
+              )}
+              <Button
+                onClick={handleCsvUpload}
+                className="w-full gap-2 bg-accent-orange text-white hover:bg-accent-orange-hover"
+              >
+                <Upload className="h-4 w-4" />
+                Upload & Parse
+              </Button>
+            </div>
+          )}
+
+          {/* Processing state */}
+          {csvStatus && csvStatus !== 'complete' && csvStatus !== 'failed' && (
+            <div className="flex flex-col items-center gap-4 py-8">
+              <div className="h-12 w-12 animate-spin rounded-full border-4 border-border-subtle border-t-accent-orange" />
+              <p className="text-sm font-medium text-foreground">
+                {csvStatus === 'creating_session' && 'Creating session...'}
+                {csvStatus === 'uploading' && 'Uploading CSV...'}
+                {csvStatus === 'processing' && 'Parsing telemetry data...'}
+                {csvStatus === 'pending' && 'Queued for processing...'}
+              </p>
+              {csvFile && (
+                <p className="text-xs text-foreground-muted">{csvFile.name}</p>
+              )}
+            </div>
+          )}
+
+          {/* Error state */}
+          {csvStatus === 'failed' && (
+            <div className="flex flex-col gap-4">
+              <div className="rounded-lg border border-accent-red/30 bg-accent-red/10 p-4">
+                <div className="mb-2 flex items-center gap-2">
+                  <X className="h-5 w-5 text-accent-red" />
+                  <span className="font-medium text-accent-red">Parsing failed</span>
+                </div>
+                <p className="text-sm text-accent-red/80">{csvError}</p>
+              </div>
+              <Button
+                onClick={resetCsvState}
+                variant="outline"
+                className="w-full border-border text-foreground"
+              >
+                Try another file
+              </Button>
+            </div>
+          )}
+
+          {/* Success — parsed results */}
+          {csvStatus === 'complete' && csvResult && (
             <div className="flex flex-col gap-4">
               <div className="rounded-lg border border-accent-green/30 bg-accent-green/10 p-4">
                 <div className="mb-4 flex items-center gap-2">
@@ -509,75 +732,101 @@ export default function SessionNewFeedback() {
                 </div>
 
                 <div className="flex flex-col gap-3 text-sm">
-                  <div className="flex justify-between">
-                    <span className="text-foreground-secondary">Session</span>
-                    <span className="font-mono text-foreground">Buttonw TC#1</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-foreground-secondary">Date</span>
-                    <span className="text-foreground">Sat Mar 7, 2026 &middot; 9:57 AM</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-foreground-secondary">Duration</span>
-                    <span className="font-mono text-foreground">10m 12s</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-foreground-secondary">Laps</span>
-                    <span className="font-mono text-foreground">5</span>
-                  </div>
-                  <div className="my-2 border-t border-border-subtle" />
-                  <div className="flex justify-between">
-                    <span className="text-foreground-secondary">Best lap</span>
-                    <span className="font-mono font-semibold text-accent-green">
-                      1:45.972 (Lap 4)
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-foreground-secondary">Channels</span>
-                    <span className="text-foreground">92 channels &middot; 20Hz</span>
-                  </div>
+                  {Boolean(csvResult.session_name) && (
+                    <div className="flex justify-between">
+                      <span className="text-foreground-secondary">Session</span>
+                      <span className="font-mono text-foreground">{String(csvResult.session_name)}</span>
+                    </div>
+                  )}
+                  {csvResult.lap_count != null && (
+                    <div className="flex justify-between">
+                      <span className="text-foreground-secondary">Laps</span>
+                      <span className="font-mono text-foreground">{String(csvResult.lap_count)}</span>
+                    </div>
+                  )}
+                  {csvResult.duration_s != null && (
+                    <div className="flex justify-between">
+                      <span className="text-foreground-secondary">Duration</span>
+                      <span className="font-mono text-foreground">
+                        {Math.floor(Number(csvResult.duration_s) / 60)}m {Math.floor(Number(csvResult.duration_s) % 60)}s
+                      </span>
+                    </div>
+                  )}
+                  {csvResult.channel_count != null && (
+                    <div className="flex justify-between">
+                      <span className="text-foreground-secondary">Channels</span>
+                      <span className="text-foreground">{String(csvResult.channel_count)} channels</span>
+                    </div>
+                  )}
+                  {csvResult.best_lap_ms != null && (
+                    <>
+                      <div className="my-2 border-t border-border-subtle" />
+                      <div className="flex justify-between">
+                        <span className="text-foreground-secondary">Best lap</span>
+                        <span className="font-mono font-semibold text-accent-green">
+                          {(() => {
+                            const ms = Number(csvResult.best_lap_ms)
+                            const m = Math.floor(ms / 60000)
+                            const s = ((ms % 60000) / 1000).toFixed(3)
+                            return `${m}:${s.padStart(6, '0')}`
+                          })()}
+                          {csvResult.best_lap_number != null && ` (Lap ${String(csvResult.best_lap_number)})`}
+                        </span>
+                      </div>
+                    </>
+                  )}
                 </div>
               </div>
 
-              {/* Lap breakdown */}
-              <div className="rounded-lg border border-border-subtle bg-background-surface p-4">
-                <h3 className="mb-3 text-sm font-medium text-foreground">Segments</h3>
-                <div className="flex flex-col gap-2 font-mono text-sm tabular-nums">
-                  <div className="flex justify-between text-foreground-muted">
-                    <span>Lap 1</span>
-                    <span>2:32.836 out lap</span>
-                  </div>
-                  <div className="flex justify-between text-foreground">
-                    <span>Lap 2</span>
-                    <span>1:48.568</span>
-                  </div>
-                  <div className="flex justify-between text-foreground">
-                    <span>Lap 3</span>
-                    <span>1:46.366</span>
-                  </div>
-                  <div className="flex justify-between text-accent-green">
-                    <span>Lap 4</span>
-                    <span className="flex items-center gap-2">
-                      1:45.972
-                      <span className="text-xs">best</span>
-                    </span>
-                  </div>
-                  <div className="flex justify-between text-foreground-muted">
-                    <span>Lap 5</span>
-                    <span>2:19.256 in lap</span>
+              {/* Lap breakdown if available */}
+              {Array.isArray(csvResult.laps) && (csvResult.laps as Array<Record<string, unknown>>).length > 0 && (
+                <div className="rounded-lg border border-border-subtle bg-background-surface p-4">
+                  <h3 className="mb-3 text-sm font-medium text-foreground">Laps</h3>
+                  <div className="flex flex-col gap-2 font-mono text-sm tabular-nums">
+                    {(csvResult.laps as Array<Record<string, unknown>>).map((lap, i) => {
+                      const lapMs = Number(lap.lap_time_ms ?? 0)
+                      const m = Math.floor(lapMs / 60000)
+                      const s = ((lapMs % 60000) / 1000).toFixed(3)
+                      const isBest = lap.is_best === true || Number(lap.lap_number) === Number(csvResult.best_lap_number)
+                      return (
+                        <div
+                          key={i}
+                          className={cn(
+                            'flex justify-between',
+                            isBest ? 'text-accent-green' : 'text-foreground',
+                          )}
+                        >
+                          <span>Lap {String(lap.lap_number ?? i + 1)}</span>
+                          <span className="flex items-center gap-2">
+                            {m}:{s.padStart(6, '0')}
+                            {isBest && <span className="text-xs">best</span>}
+                          </span>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
-              </div>
+              )}
 
               <div className="flex gap-3">
                 <Button
                   variant="outline"
+                  onClick={resetCsvState}
                   className="flex-1 border-border text-foreground"
                 >
-                  View raw channels
+                  Upload different file
                 </Button>
-                <Button className="flex-1 gap-2 bg-accent-orange text-white hover:bg-accent-orange-hover">
-                  Confirm & Analyze
+                <Button
+                  onClick={() => {
+                    if (csvSessionId) {
+                      resetForm()
+                      navigate(`/sessions/${csvSessionId}`)
+                    }
+                  }}
+                  className="flex-1 gap-2 bg-accent-orange text-white hover:bg-accent-orange-hover"
+                >
+                  <Check className="h-4 w-4" />
+                  View Session
                 </Button>
               </div>
             </div>

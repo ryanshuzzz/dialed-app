@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, ChevronDown, ChevronRight } from 'lucide-react'
@@ -9,6 +10,7 @@ import { Switch } from '@/components/ui/switch'
 import { cn } from '@/lib/utils'
 import { useSessionFormStore } from '@/stores/sessionFormStore'
 import { useEvents } from '@/hooks/useEvents'
+import { useTracks } from '@/hooks/useTracks'
 
 type SessionType = 'practice' | 'qualifying' | 'race' | 'trackday'
 type Compound = 'SC0' | 'SC1' | 'SC2' | 'Road'
@@ -49,6 +51,18 @@ export default function SessionLogger() {
   const setEventId = useSessionFormStore((s) => s.setEventId)
 
   const { data: events } = useEvents()
+  const { data: tracks } = useTracks()
+
+  // Build a lookup map: track_id -> track name (with config)
+  const trackMap = useMemo(() => {
+    const map = new Map<string, string>()
+    if (tracks) {
+      for (const t of tracks) {
+        map.set(t.id, t.config ? `${t.name} ${t.config}` : t.name)
+      }
+    }
+    return map
+  }, [tracks])
 
   return (
     <div className="pb-24" data-testid="session-logger">
@@ -78,7 +92,7 @@ export default function SessionLogger() {
             <option value="">Select an event...</option>
             {events?.map((event) => (
               <option key={event.id} value={event.id}>
-                {event.date}{event.track_id ? ` — Track ${event.track_id}` : ''}
+                {new Date(event.date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}{event.track_id ? ` — ${trackMap.get(event.track_id) ?? 'Unknown Track'}` : ''}
               </option>
             ))}
           </select>

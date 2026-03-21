@@ -189,8 +189,8 @@ export default function Progress() {
               </div>
             </section>
 
-            {/* Efficacy Section */}
-            {efficacy && (
+            {/* Efficacy Section — only show when there's meaningful data */}
+            {efficacy && (efficacy.avg_delta_by_status?.applied != null || efficacy.avg_delta_by_status?.skipped != null) && (
               <section className="rounded-lg border border-border-subtle bg-background-surface p-4">
                 <h3 className="mb-4 text-sm font-medium text-foreground-secondary">Did the changes help?</h3>
 

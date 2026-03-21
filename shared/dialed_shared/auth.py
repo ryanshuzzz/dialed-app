@@ -62,8 +62,10 @@ def verify_internal_token(token: str, secret: str) -> dict[str, Any]:
     """
     try:
         payload = jwt.decode(token, secret, algorithms=[_ALGORITHM])
-    except JWTError as exc:
-        raise UnauthorizedException(f"Invalid internal token: {exc}") from exc
+    except JWTError:
+        raise UnauthorizedException("Invalid or expired token")
+    except Exception:
+        raise UnauthorizedException("Invalid or expired token")
 
     if "user_id" not in payload:
         raise UnauthorizedException("Internal token missing user_id claim")

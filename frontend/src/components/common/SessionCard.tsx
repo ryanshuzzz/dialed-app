@@ -14,6 +14,7 @@ interface SessionCardProps {
   }
   date: string
   time: string
+  trackName?: string
   hasAiSuggestion?: boolean
   hasTelemetry?: boolean
 }
@@ -32,6 +33,7 @@ export function SessionCard({
   delta,
   date,
   time,
+  trackName,
   hasAiSuggestion,
   hasTelemetry,
 }: SessionCardProps) {
@@ -56,6 +58,13 @@ export function SessionCard({
           )}>
             {type}
           </span>
+
+          {/* Track name */}
+          {trackName && (
+            <span className="text-sm font-medium text-foreground-secondary">
+              {trackName}
+            </span>
+          )}
 
           {/* Lap time and delta */}
           <div className="flex items-baseline gap-3">

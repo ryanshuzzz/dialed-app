@@ -96,10 +96,16 @@ def create_app() -> FastAPI:
         for h in ("host", "connection", "transfer-encoding"):
             headers.pop(h, None)
 
-        # If client sends a Bearer token, create an internal token
+        # If client sends a Bearer token, create an internal token.
+        # Fallback: accept ?token= query param (needed for SSE/EventSource
+        # which cannot set custom headers).
         auth_header = request.headers.get("authorization", "")
         if auth_header.startswith("Bearer "):
             bearer_token = auth_header[7:]
+        else:
+            bearer_token = request.query_params.get("token", "")
+
+        if bearer_token:
             try:
                 from jose import jwt as jose_jwt
 
@@ -116,6 +122,13 @@ def create_app() -> FastAPI:
 
         body = await request.body()
 
+        # Strip auth token from query params before forwarding to backend
+        forwarded_params = {
+            k: v
+            for k, v in request.query_params.items()
+            if k != "token"
+        }
+
         # Proxy the request
         async with httpx.AsyncClient(timeout=30.0) as client:
             backend_resp = await client.request(
@@ -123,7 +136,7 @@ def create_app() -> FastAPI:
                 url=f"{backend_url}{backend_path}",
                 headers=headers,
                 content=body,
-                params=dict(request.query_params),
+                params=forwarded_params,
             )
 
         # Check if this is an SSE stream
@@ -137,7 +150,7 @@ def create_app() -> FastAPI:
                         url=f"{backend_url}{backend_path}",
                         headers=headers,
                         content=body,
-                        params=dict(request.query_params),
+                        params=forwarded_params,
                     ) as resp:
                         async for chunk in resp.aiter_bytes():
                             yield chunk
