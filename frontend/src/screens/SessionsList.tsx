@@ -27,6 +27,10 @@ function DesktopDetailPanel({ sessionId }: { sessionId: string }) {
   const { data: suggestions } = useSuggestions(sessionId)
   const [activeTab, setActiveTab] = useState<'overview' | 'suggestion' | 'changes'>('overview')
 
+  // Resolve track name via event — hooks must be before any returns
+  const { data: event } = useEvent(session?.event_id)
+  const { data: track } = useTrack(event?.track_id ?? undefined)
+
   if (isLoading || !session) {
     return (
       <div className="flex flex-1 items-center justify-center text-foreground-muted">
@@ -34,10 +38,6 @@ function DesktopDetailPanel({ sessionId }: { sessionId: string }) {
       </div>
     )
   }
-
-  // Resolve track name via event
-  const { data: event } = useEvent(session?.event_id)
-  const { data: track } = useTrack(event?.track_id ?? undefined)
   const trackLabel = track ? (track.config ? `${track.name} ${track.config}` : track.name) : null
 
   const bestLap = session.csv_best_lap_ms ?? session.manual_best_lap_ms
