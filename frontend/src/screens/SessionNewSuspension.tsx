@@ -103,7 +103,7 @@ export default function SessionNewSuspension() {
   })()
 
   return (
-    <div className="pb-32">
+    <div className="pb-4">
       {/* Header */}
       <div className="mb-6 flex items-center gap-3">
         <Link
@@ -275,8 +275,8 @@ export default function SessionNewSuspension() {
       </div>
 
       {/* Footer */}
-      <div className="fixed bottom-0 left-0 right-0 border-t border-border-subtle bg-background-surface safe-area-bottom lg:hidden">
-        <div className="mx-auto flex max-w-[480px] flex-col gap-2 px-4 py-4">
+      <div className="border-t border-border-subtle bg-background-surface mt-6 -mx-4 safe-area-bottom lg:hidden">
+        <div className="mx-auto max-w-[480px] space-y-2 px-4 py-4">
           <Button
             onClick={() => navigate('/sessions/new/feedback')}
             className="h-12 w-full gap-2 rounded bg-accent-orange text-base font-medium text-white hover:bg-accent-orange-hover"

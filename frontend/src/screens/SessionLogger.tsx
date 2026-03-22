@@ -73,7 +73,7 @@ export default function SessionLogger() {
     </div>
 
     {/* Mobile: step-by-step wizard */}
-    <div className="pb-24 lg:hidden" data-testid="session-logger">
+    <div className="pb-4 lg:hidden" data-testid="session-logger">
       {/* Header */}
       <div className="mb-6 flex items-center gap-3">
         <Link
@@ -295,7 +295,7 @@ export default function SessionLogger() {
       </div>
 
       {/* Footer */}
-      <div className="fixed bottom-0 left-0 right-0 border-t border-border-subtle bg-background-surface safe-area-bottom lg:hidden">
+      <div className="border-t border-border-subtle bg-background-surface mt-6 -mx-4 safe-area-bottom lg:hidden">
         <div className="mx-auto max-w-[480px] px-4 py-4">
           <Button
             onClick={() => navigate('/sessions/new/suspension')}
